@@ -3,6 +3,8 @@ import time
 
 from typing import Callable, Generator, Type, TypeVar
 
+from .types.packets.send_part_msg import SendPartMsgPacket
+from .types.packets.syn_send_msg import SynSendMsgPacket
 from .types.flags import Flags
 from .types.iterable_in_loop import IterableInLoop
 from .types.iteration_status import IterationStatus
@@ -35,6 +37,10 @@ class Connection:
         self.__un_acknowledgment: list[Packet] = []
         self.__last_time = time.time()
         self.__keep_alive = 3
+
+        self.__sending_data = [
+            
+        ]
 
     @property
     def other_side(self) -> ConnSide:
@@ -73,7 +79,7 @@ class Connection:
 
         self.__packet_queue.append(packet)
     
-    def send(self, packet: Packet) -> None:
+    def _send(self, packet: Packet) -> None:
         LOG.debug(f"SEND: flags={packet.header.flags.__repr__()}, seq_number={packet.header.seq_number}, ack_number={packet.header.ack_number}, data_len={len(packet.data)}")
         self.__send_proxy(self.other_side, packet.dump())
         self.__un_acknowledgment.append(packet)
@@ -86,16 +92,35 @@ class Connection:
         packet.data_public_key = self.__public_key
         packet.window_size = self.__window_size
 
-        self.send(packet)
+        self._send(packet)
     
     def disconnect(self) -> None:
         LOG.debug(f"Disconnecting from {self.other_side}")
         packet = self._build_packet(Flags.FIN)
-        self.send(packet)
+        self._send(packet)
+    
+    def send_message(self, message: bytes) -> None:
+        packet = self._build_packet(
+            Flags.SYN | Flags.SEND | Flags.MSG,
+            packet_factory=SynSendMsgPacket
+        )
+        packet.message_len = len(message)
+        print(packet.message_len, len(message), packet.public_key, packet.private_key)
+        self._send(packet)
+
+        send_part = self._build_packet(
+            Flags.SEND | Flags.PART | Flags.MSG,
+            packet_factory=SendPartMsgPacket
+        )
+        send_part.message = message
+        print(send_part)
+        self._send(send_part)
+
+        
 
     def process(self) -> IterationStatus:
         if time.time() - self.__last_time > 5:
-            self.send(self._build_packet(Flags.ACK))
+            self._send(self._build_packet(Flags.ACK))
             self.__keep_alive -= 1
             self.__last_time = time.time()
         if self.__keep_alive == 0:
@@ -109,29 +134,41 @@ class Connection:
             self._conversation_status.new_packet(packet)
             
             if packet.header.flags == Flags.SYN:
-                packet: SynPacket = SynPacket().load(packet.dump())
+                packet = SynPacket().load(packet.dump())
                 self.__other_public_key = packet.data_public_key
                 self.__window_size = packet.window_size
                 new_packet = self._build_packet(Flags.SYN | Flags.ACK, packet.header.seq_number, packet_factory=SynAckPacket)
                 new_packet.data_public_key = self.__public_key
                 new_packet.window_size = self.__window_size
-                self.send(new_packet)
+                self._send(new_packet)
             
             if packet.header.flags == (Flags.SYN | Flags.ACK):
-                packet: SynAckPacket = SynAckPacket().load(packet.dump())
+                packet = SynAckPacket().load(packet.dump())
                 self.__other_public_key = packet.data_public_key
                 self.__window_size = packet.window_size
                 new_packet = self._build_packet(Flags.ACK, packet.header.seq_number)
-                self.send(new_packet)
+                self._send(new_packet)
             
+            if packet.header.flags == Flags.SYN | Flags.SEND | Flags.MSG:
+                packet = SynSendMsgPacket().load(packet.dump())
+                packet.private_key = self.__private_key
+
+                print(packet.message_len, packet.public_key, packet.private_key)
+            
+            if packet.header.flags == Flags.SEND | Flags.PART | Flags.MSG:
+                packet = SendPartMsgPacket().load(packet.dump())
+                packet.private_key = self.__private_key
+                print(packet.message, packet.public_key, packet.private_key)
+
             if packet.header.flags == Flags.FIN:
                 new_packet = self._build_packet(Flags.FIN | Flags.ACK, packet.header.seq_number)
-                self.send(new_packet)
+                self._send(new_packet)
                 return IterationStatus.FINISHED
+
             if packet.header.flags == (Flags.FIN | Flags.ACK):
                 return IterationStatus.FINISHED
             
-            print(self.__other_public_key, self.__public_key, self.__private_key)
-            print(self._conversation_status)
+            # print(self.__other_public_key, self.__public_key, self.__private_key)
+            # print(self._conversation_status)
 
         return IterationStatus.SLEEP

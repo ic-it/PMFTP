@@ -78,7 +78,7 @@ class Packet:
     def dump(self) -> bytes:
         return self.__header.dump() + self.__data
     
-    def load(self, data: bytes) -> 'Packet':
+    def load(self: _T, data: bytes) -> _T:
         self.__header.load(data[:15])
         self.__data = data[15:]
         return self

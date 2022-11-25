@@ -16,9 +16,14 @@ with Socket(UDP_IP, UDP_PORT) as socket:
     )
     # socket.listen()
 
-    for i in range(10):
+    for i in range(20):
         socket.iter_loop()
         time.sleep(0.1)
-        
     
+    conn.send_message(b"Hello, World!")
+
+    for i in range(20):
+        socket.iter_loop()
+        time.sleep(0.1)
+
     conn.disconnect()
