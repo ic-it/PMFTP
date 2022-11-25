@@ -1,0 +1,3 @@
+from .syn import SynPacket
+
+class SynAckPacket(SynPacket): ...
