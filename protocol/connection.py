@@ -1,12 +1,10 @@
 import logging
 import time
 
-from typing import Callable, Generator, Type, TypeVar
-
+from typing import Callable, Type, TypeVar
 from .types.packets.send_part_msg import SendPartMsgPacket
 from .types.packets.syn_send_msg import SynSendMsgPacket
 from .types.flags import Flags
-from .types.iterable_in_loop import IterableInLoop
 from .types.iteration_status import IterationStatus
 from .types.conn_side import ConnSide
 from .types.packets.base import Packet
@@ -17,7 +15,6 @@ from .utils import PUBLIC_KEY_T, PRIVATE_KEY_T
 from .types.conversation_status import ConversationStatus
 
 LOG = logging.getLogger("Connection")
-
 _T = TypeVar("_T")
 
 class Connection:
@@ -34,13 +31,10 @@ class Connection:
         
         self.__sequence_number = 0
         self.__window_size = 0
-        self.__un_acknowledgment: list[Packet] = []
+        self.__wait_for_acknowledgment: list[Packet] = []
         self.__last_time = time.time()
-        self.__keep_alive = 3
+        self.__keep_alive = 5
 
-        self.__sending_data = [
-            
-        ]
 
     @property
     def other_side(self) -> ConnSide:
@@ -55,7 +49,7 @@ class Connection:
             window_size=self.__window_size
         )
     
-    def _build_packet(self, flags: Flags, ack_number: int = 0, data: bytes = b'', packet_factory: Type['_T'] = Packet) -> Type['_T']:
+    def _build_packet(self, flags: Flags, ack_number: int = 0, data: bytes = b'', packet_factory: Type[_T] = Packet) -> _T:
         header = self._build_header(flags, ack_number)
         packet = packet_factory(header=header, public_key=self.__other_public_key, private_key=self.__private_key)
         packet.data = data
@@ -72,17 +66,17 @@ class Connection:
 
         LOG.debug(f"RECV: flags={packet.header.flags.__repr__()}, seq_number={packet.header.seq_number}, ack_number={packet.header.ack_number}, data_len={len(packet.data)}")
 
-        for unack_packet in self.__un_acknowledgment:
-            if unack_packet.header.seq_number == packet.header.ack_number:
-                self.__un_acknowledgment.remove(unack_packet)
-                break
+        if not packet.is_packet_valid:
+            self._send(self._build_packet(Flags.UNACK, packet.header.seq_number))
+            LOG.debug(f"Packet is not valid")
+            return
 
         self.__packet_queue.append(packet)
     
     def _send(self, packet: Packet) -> None:
         LOG.debug(f"SEND: flags={packet.header.flags.__repr__()}, seq_number={packet.header.seq_number}, ack_number={packet.header.ack_number}, data_len={len(packet.data)}")
         self.__send_proxy(self.other_side, packet.dump())
-        self.__un_acknowledgment.append(packet)
+        self.__wait_for_acknowledgment.append(packet)
         self._conversation_status.new_packet(packet)
     
     def connect(self) -> None:
@@ -115,20 +109,30 @@ class Connection:
         send_part.message = message
         print(send_part)
         self._send(send_part)
-
+    
+    def _keep_alive(self) -> bool:
+        if time.time() - self.__last_time > self.__keep_alive:
+            self._send(self._build_packet(Flags.ACK | Flags.UNACK))
+            self.__last_time = time.time()
         
+        unuck_keep_alive = [packet for packet in self.__wait_for_acknowledgment if packet.header.flags & (Flags.ACK | Flags.UNACK)]
+
+        if len(unuck_keep_alive) > 5:
+            self.disconnect()
+            return False
+        return True
+    
+    def _send_ack(self, packet: Packet) -> None:
+        self._send(self._build_packet(Flags.ACK, packet.header.seq_number))
+    
+    def _recv_ack(self, packet: Packet) -> None:
+        self.__wait_for_acknowledgment = [p for p in self.__wait_for_acknowledgment if p.header.seq_number != packet.header.ack_number]
 
     def process(self) -> IterationStatus:
-        if time.time() - self.__last_time > 5:
-            self._send(self._build_packet(Flags.ACK))
-            self.__keep_alive -= 1
-            self.__last_time = time.time()
-        if self.__keep_alive == 0:
-            self.disconnect()
+        if not self._keep_alive():
             return IterationStatus.FINISHED
 
         while len(self.__packet_queue) > 0:
-            self.__keep_alive = 3
 
             packet = self.__packet_queue.pop(0)
             self._conversation_status.new_packet(packet)
@@ -146,8 +150,7 @@ class Connection:
                 packet = SynAckPacket().load(packet.dump())
                 self.__other_public_key = packet.data_public_key
                 self.__window_size = packet.window_size
-                new_packet = self._build_packet(Flags.ACK, packet.header.seq_number)
-                self._send(new_packet)
+                self._send_ack(packet)
             
             if packet.header.flags == Flags.SYN | Flags.SEND | Flags.MSG:
                 packet = SynSendMsgPacket().load(packet.dump())
@@ -168,7 +171,7 @@ class Connection:
             if packet.header.flags == (Flags.FIN | Flags.ACK):
                 return IterationStatus.FINISHED
             
-            # print(self.__other_public_key, self.__public_key, self.__private_key)
-            # print(self._conversation_status)
+            if packet.header.flags & Flags.ACK:
+                self._recv_ack(packet)
 
         return IterationStatus.SLEEP

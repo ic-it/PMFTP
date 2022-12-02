@@ -1,6 +1,7 @@
 from ctypes import c_uint32, c_uint16
 from .flags import Flags
 
+HEADER_SIZE = 12 # 12 bytes
 
 class Header:
     def __init__(self, seq_number: int = 0, ack_number: int = 0,
@@ -14,23 +15,7 @@ class Header:
         self.__window_id = c_uint16(window_id)
         self.__window_size = c_uint16(window_size)
         self.__checksum = c_uint16(checksum)
-    
-    @property
-    def checksum(self) -> int:
-        return self.__checksum.value
-
-    @checksum.setter
-    def checksum(self, checksum: int) -> None:
-        self.__checksum = c_uint16(checksum)
         
-    @property
-    def flags(self) -> Flags:
-        return self.__flags
-    
-    @flags.setter
-    def flags(self, flags: Flags) -> None:
-        self.__flags = flags
-    
     @property
     def seq_number(self) -> int:
         return self.__seq_number.value
@@ -38,7 +23,31 @@ class Header:
     @property
     def ack_number(self) -> int:
         return self.__ack_number.value
+
+    @property
+    def flags(self) -> Flags:
+        return self.__flags
     
+    @flags.setter
+    def flags(self, flags: Flags) -> None:
+        self.__flags = flags
+
+    @property
+    def window_id(self) -> int:
+        return self.__window_id.value
+    
+    @property
+    def window_size(self) -> int:
+        return self.__window_size.value
+
+    @property
+    def checksum(self) -> int:
+        return self.__checksum.value
+
+    @checksum.setter
+    def checksum(self, checksum: int) -> None:
+        self.__checksum = c_uint16(checksum)
+
     def dump(self) -> bytes:
         return (
             self.__seq_number.value.to_bytes(4, byteorder='big')

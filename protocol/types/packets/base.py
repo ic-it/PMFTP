@@ -27,6 +27,10 @@ class Packet:
     def _post_init_(self, *args, **kwargs) -> None: NotImplemented
 
     @property
+    def is_packet_valid(self) -> bool:
+        return self.__validate_checksum()
+
+    @property
     def public_key(self) -> PUBLIC_KEY_T:
         return self.__public_key
     
@@ -74,7 +78,6 @@ class Packet:
     def __validate_checksum(self) -> bool:
         return self.__header.checksum == self.__calculate_checksum()
     
-    
     def dump(self) -> bytes:
         return self.__header.dump() + self.__data
     
@@ -83,6 +86,14 @@ class Packet:
         self.__data = data[15:]
         return self
     
+    def upcast(self, packet_type: Type[_T]) -> _T:
+        packet = packet_type()
+        packet.__header = self.__header
+        packet.__data = self.__data
+        packet.__public_key = self.__public_key
+        packet.__private_key = self.__private_key
+        return packet
+
     def __repr__(self) -> str:
         return (
             f"Packet(header={self.__header.__repr__()}, " "\n"

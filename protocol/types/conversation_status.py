@@ -1,6 +1,7 @@
 from .flags import Flags
 from .packets.base import Packet
 
+
 class ConversationStatus:
     def __init__(self) -> None:
         self.__is_connected: bool = False
@@ -40,7 +41,6 @@ class ConversationStatus:
         if packet.header.flags == (Flags.FIN | Flags.ACK):
             self.__is_disconnecting = False
             self.__is_disconnected = True
-
     
     def __str__(self) -> str:
         return f"ConversationStatus(is_connected={self.is_connected}, is_connecting={self.is_connecting}, is_disconnecting={self.is_disconnecting}, is_disconnected={self.is_disconnected})"
