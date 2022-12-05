@@ -1,19 +1,17 @@
 from ctypes import c_uint32, c_uint16
 from .flags import Flags
 
-HEADER_SIZE = 12 # 12 bytes
+HEADER_SIZE = 13 # bytes
 
 class Header:
     def __init__(self, seq_number: int = 0, ack_number: int = 0,
-                flags: Flags = None, window_id: int = 0, 
-                window_size: int = 0, checksum: int = 0) -> None:
+                flags: Flags = None, transfer_id: int = 0, checksum: int = 0) -> None:
         if flags is None:
             flags = Flags(0)
         self.__seq_number = c_uint32(seq_number)
         self.__ack_number = c_uint32(ack_number)
         self.__flags = flags
-        self.__window_id = c_uint16(window_id)
-        self.__window_size = c_uint16(window_size)
+        self.__transfer_id = c_uint16(transfer_id)
         self.__checksum = c_uint16(checksum)
         
     @property
@@ -33,12 +31,8 @@ class Header:
         self.__flags = flags
 
     @property
-    def window_id(self) -> int:
-        return self.__window_id.value
-    
-    @property
-    def window_size(self) -> int:
-        return self.__window_size.value
+    def transfer_id(self) -> int:
+        return self.__transfer_id.value
 
     @property
     def checksum(self) -> int:
@@ -53,8 +47,7 @@ class Header:
             self.__seq_number.value.to_bytes(4, byteorder='big')
             + self.__ack_number.value.to_bytes(4, byteorder='big')
             + self.__flags.value.to_bytes(1, byteorder='big') 
-            + self.__window_id.value.to_bytes(2, byteorder='big')
-            + self.__window_size.value.to_bytes(2, byteorder='big')
+            + self.__transfer_id.value.to_bytes(2, byteorder='big')
             + self.__checksum.value.to_bytes(2, byteorder='big')
         )
     
@@ -62,16 +55,17 @@ class Header:
         self.__seq_number = c_uint32(int.from_bytes(data[0:4], byteorder='big'))
         self.__ack_number = c_uint32(int.from_bytes(data[4:8], byteorder='big'))
         self.__flags = Flags(int.from_bytes(data[8:9], byteorder='big'))
-        self.__window_id = c_uint16(int.from_bytes(data[9:11], byteorder='big'))
-        self.__window_size = c_uint16(int.from_bytes(data[11:13], byteorder='big'))
-        self.__checksum = c_uint16(int.from_bytes(data[13:15], byteorder='big'))
+        self.__transfer_id = c_uint16(int.from_bytes(data[9:11], byteorder='big'))
+        self.__checksum = c_uint16(int.from_bytes(data[11:13], byteorder='big'))
     
-    def __repr__(self) -> str:
+    def __str__(self) -> str:
         return (
-            f"Header(seq_number={self.__seq_number.value}, " "\n"
-            "\t" f"ack_number={self.__ack_number.value}, " "\n"
-            "\t" f"flags={self.__flags.__repr__()}, " "\n"
-            "\t" f"window_id={self.__window_id.value}, " "\n"
-            "\t" f"window_size={self.__window_size.value}, " "\n"
-            "\t" f"checksum={self.__checksum.value})"
+            f"Header(seq_number={self.__seq_number.value}, "
+            f"ack_number={self.__ack_number.value}, "
+            f"flags={self.__flags.__repr__()}, "
+            f"__transfer_id={self.__transfer_id.value}, "
+            f"checksum={self.__checksum.value})"
         )
+
+    def __repr__(self) -> str:
+        return self.__str__()

@@ -1,27 +1,29 @@
 import socket
 import logging
 import time
-from typing import Generator
 
-from .iterators_queue import IteratorsQueue
-from .types.iterable_in_loop import IterableInLoop
+from selectors import DefaultSelector, EVENT_READ, EVENT_WRITE
+from typing import Generator, Callable
+
+from protocol.types.keychain import Keychain
 from .types.iteration_status import IterationStatus
 from .types.conn_side import ConnSide
-from .utils import PRIVATE_KEY_T, PUBLIC_KEY_T, genereate_keys
+from .utils import genereate_keys
 from .connection import Connection
+from .types.handlers import Handlers
 
 LOG = logging.getLogger("main_loop")
 
 class Socket:
     def __init__(self, ip: str, port: int) -> None:
         self._bound_on: ConnSide = ConnSide(ip, port)
-        self._public_key: PUBLIC_KEY_T = None
-        self._private_key: PRIVATE_KEY_T = None
+        self._keychain: Keychain = Keychain(*genereate_keys())
         self._socket: socket = None
-        self._iterators_queue: list[callable] = None
-        self._connections: list[Connection] = None
+        self._socket_selector: DefaultSelector = None
 
-        self._public_key, self._private_key = genereate_keys()
+        self._iterators_queue: list[Callable] = None
+        self._connections: list[Connection] = None
+        self._handlers: Handlers = Handlers()
     
     @property
     def bound_on(self) -> ConnSide:
@@ -31,26 +33,45 @@ class Socket:
     def is_bound(self) -> bool:
         return self._socket is not None
     
-    def _recv_iter(self) -> IterableInLoop:
-        try:
-            data, (ip, port) = self._socket.recvfrom(1024)
-            side = ConnSide(ip, port)
-        except BlockingIOError:
-            return IterationStatus.SLEEP
-        
-        connection = None
+    def on_connect(self, func: Callable) -> Callable:
+        self._handlers.on_connect = func
+        return func
+    
+    def on_message(self, func: Callable) -> Callable:
+        self._handlers.on_message = func
+        return func
+    
+    def on_disconnect(self, func: Callable) -> Callable:
+        self._handlers.on_disconnect = func
+        return func
+
+    def get_connection_by_side(self, side: ConnSide) -> Connection:
         for conn in self._connections:
             if conn.other_side == side:
-                connection = conn
-                break
+                return conn
+        return None
+    
+    def _iterate(self):
+        if self._socket is None:
+            LOG.warning("Socket not bound")
+            return IterationStatus.FINISHED
         
-        if not connection:
-            connection = Connection(side, self._public_key, self._private_key, self._send_to)
-            self._add_iterator(connection.process)
-            self._connections.append(connection)
+        for key, _ in self._socket_selector.select(timeout=0):
+            data, (ip, port) = key.fileobj.recvfrom(1024)
+            side = ConnSide(ip, port)
         
-        connection.recv(data)
+            connection = self.get_connection_by_side(side)
+
+            if not connection:
+                connection = Connection(side, 
+                                        self._keychain.copy(),
+                                        self._send_to,
+                                        self._handlers)
+                connection._add_iterator = self._add_iterator
+                self._add_iterator(connection._iterate)
+                self._connections.append(connection)
         
+            connection._recv(data)
         return IterationStatus.SLEEP
     
     def _send_to(self, side: ConnSide, data: bytes) -> None:
@@ -68,27 +89,35 @@ class Socket:
         self._socket.bind((self._bound_on.ip, self._bound_on.port))
         self._socket.setblocking(False)
 
+        self._socket_selector = DefaultSelector()
+        self._socket_selector.register(self._socket, EVENT_READ)
+
         self._iterators_queue = []
         self._connections = []
 
-        self._add_iterator(self._recv_iter)
+        self._add_iterator(self._iterate)
 
         LOG.debug(f"Socket bound on {self._bound_on}")
     
     def connect(self, side: ConnSide) -> Connection:
-        for conn in self._connections:
-            if conn.other_side == side:
-                return conn
+        for connection in self._connections:
+            if connection.other_side == side:
+                return connection
         
-        conn = Connection(side, self._public_key, self._private_key, self._send_to)
-        self._connections.append(conn)
-        self._add_iterator(conn.process)
-        conn.connect()
-        return conn
+        connection = Connection(side, 
+                                self._keychain.copy(),
+                                self._send_to,
+                                self._handlers)
+        connection._add_iterator = self._add_iterator
+        self._connections.append(connection)
+        self._add_iterator(connection._iterate)
+        connection.connect()
+        
+        return connection
     
     def clear_connections(self) -> None:
         for conn in self._connections:
-            if conn._conversation_status.is_disconnected:
+            if conn.conversation_status.is_disconnected:
                 self._connections.remove(conn)
                 LOG.debug(f"Connection to {conn.other_side} finished")
 
@@ -99,20 +128,20 @@ class Socket:
                 self.clear_connections()
                 break
     
-    def iter_loop(self) -> None:
+    def iterate_loop(self) -> None:
         if self._socket is None:
             LOG.warning("Socket not bound")
             return
 
-        for item in self._iterators_queue:
-            status = item()
+        for iterator in self._iterators_queue:
+            status = iterator()
             if status == IterationStatus.FINISHED:
-                self._iterators_queue.remove(item)
+                self._iterators_queue.remove(iterator)
                 self.clear_connections()
 
     def listen(self) -> None:
         while self.is_bound:
-            self.iter_loop()
+            self.iterate_loop()
             time.sleep(0.01)
     
     def unbind(self) -> None:

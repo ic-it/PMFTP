@@ -15,14 +15,25 @@ with Socket(UDP_IP, UDP_PORT) as socket:
         ConnSide(UDP_IP, 5005)
     )
 
-    for i in range(20):
-        socket.iter_loop()
-        time.sleep(0.1)
+    while not conn.conversation_status.is_connected and not conn.conversation_status.is_incorrect_disconnected:
+        socket.iterate_loop()
+        time.sleep(1)
+    
+    if conn.conversation_status.is_incorrect_disconnected:
+        print("Connection failed")
+        exit(1)
     
     conn.send_message(b"Hello, World!")
 
     for i in range(20):
-        socket.iter_loop()
-        time.sleep(0.1)
+        socket.iterate_loop()
+        time.sleep(1)
 
     conn.disconnect()
+
+    while not conn.conversation_status.is_disconnected:
+        socket.iterate_loop()
+        time.sleep(0.1)
+
+    print(conn.conversation_status)
+

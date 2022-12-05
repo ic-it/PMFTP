@@ -1,8 +1,9 @@
 import copy
 
 from typing import Type, TypeVar
-from ..header import Header
+from ..header import Header, HEADER_SIZE
 from ...utils import PUBLIC_KEY_T, PRIVATE_KEY_T, encrypt, decrypt
+
 
 _T = TypeVar("_T", bound="Packet")
 
@@ -10,8 +11,6 @@ class Packet:
     def __init__(self, header: Header = None, 
                 public_key: PUBLIC_KEY_T = None, private_key: PRIVATE_KEY_T = None,
                 *args, **kwargs) -> None:
-        self._auto_encrypt_decrypt = False
-
         if not header:
             self.__header = Header()
         else:
@@ -31,19 +30,19 @@ class Packet:
         return self.__validate_checksum()
 
     @property
-    def public_key(self) -> PUBLIC_KEY_T:
+    def _public_key(self) -> PUBLIC_KEY_T:
         return self.__public_key
     
-    @public_key.setter
-    def public_key(self, public_key: PUBLIC_KEY_T) -> None:
+    @_public_key.setter
+    def _public_key(self, public_key: PUBLIC_KEY_T) -> None:
         self.__public_key = public_key
     
     @property
-    def private_key(self) -> PRIVATE_KEY_T:
+    def _private_key(self) -> PRIVATE_KEY_T:
         return self.__private_key
     
-    @private_key.setter
-    def private_key(self, private_key: PRIVATE_KEY_T) -> None:
+    @_private_key.setter
+    def _private_key(self, private_key: PRIVATE_KEY_T) -> None:
         self.__private_key = private_key
     
     @property
@@ -52,16 +51,14 @@ class Packet:
     
     @property
     def data(self) -> bytes:
-        if self._auto_encrypt_decrypt:
-            return decrypt(self.__data, self.private_key)
         return self.__data
     
     @data.setter
     def data(self, data: bytes) -> None:
-        if self._auto_encrypt_decrypt:
-            self.__data = encrypt(data, self.public_key)
-        else:
-            self.__data = data
+        if data is None:
+            data = b''
+
+        self.__data = data
         self.__header.checksum = self.__calculate_checksum()
     
     def __calculate_checksum(self) -> int:
@@ -75,6 +72,14 @@ class Packet:
         
         return checksum & 0b1111111111111111
     
+    def encrypt(self: _T) -> _T:
+        self.data = encrypt(self.data, self._public_key)
+        return self
+    
+    def decrypt(self: _T) -> _T:
+        self.data = decrypt(self.data, self._private_key)
+        return self
+
     def __validate_checksum(self) -> bool:
         return self.__header.checksum == self.__calculate_checksum()
     
@@ -82,11 +87,11 @@ class Packet:
         return self.__header.dump() + self.__data
     
     def load(self: _T, data: bytes) -> _T:
-        self.__header.load(data[:15])
-        self.__data = data[15:]
+        self.__header.load(data[:HEADER_SIZE])
+        self.__data = data[HEADER_SIZE:]
         return self
-    
-    def upcast(self, packet_type: Type[_T]) -> _T:
+
+    def downcast(self, packet_type: Type[_T]) -> _T:
         packet = packet_type()
         packet.__header = self.__header
         packet.__data = self.__data
@@ -94,8 +99,8 @@ class Packet:
         packet.__private_key = self.__private_key
         return packet
 
+    def __str__(self) -> str:
+        return f"Packet(header={self.__header.__str__()}, data={self.__data})"
+    
     def __repr__(self) -> str:
-        return (
-            f"Packet(header={self.__header.__repr__()}, " "\n"
-            "\t" f"data={self.__data})" "\n"
-        )
+        return self.__str__()

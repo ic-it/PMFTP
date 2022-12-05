@@ -22,3 +22,10 @@ def decode_pubkey(pubkey: bytes) -> PUBLIC_KEY_T:
 
 def encode_pubkey(pubkey: PUBLIC_KEY_T) -> bytes:
     return pubkey.to_bytes(32, byteorder='big')
+
+
+def seq_num_generator():
+    seq_num = 0
+    while True:
+        yield seq_num
+        seq_num += 1
