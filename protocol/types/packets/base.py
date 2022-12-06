@@ -90,6 +90,9 @@ class Packet:
         self.__header.load(data[:HEADER_SIZE])
         self.__data = data[HEADER_SIZE:]
         return self
+    
+    def copy(self: _T) -> _T:
+        return self.downcast(type(self))
 
     def downcast(self, packet_type: Type[_T]) -> _T:
         packet = packet_type()

@@ -5,7 +5,7 @@ class SendPartPacket(Packet):
     def _post_init_(self, *args, **kwargs) -> None:
         self._auto_encrypt_decrypt = True
         self.header.flags = Flags.SEND | Flags.PART
-        self.data = 0 .to_bytes(4, 'big')
+        self.data = 0 .to_bytes(4, 'big') + b''
     
     @property
     def insertion_point(self) -> int:

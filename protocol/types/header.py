@@ -18,6 +18,10 @@ class Header:
     def seq_number(self) -> int:
         return self.__seq_number.value
     
+    @seq_number.setter
+    def seq_number(self, seq_number: int) -> None:
+        self.__seq_number = c_uint32(seq_number)
+    
     @property
     def ack_number(self) -> int:
         return self.__ack_number.value
@@ -33,6 +37,10 @@ class Header:
     @property
     def transfer_id(self) -> int:
         return self.__transfer_id.value
+    
+    @transfer_id.setter
+    def transfer_id(self, transfer_id: int) -> None:
+        self.__transfer_id = c_uint16(transfer_id)
 
     @property
     def checksum(self) -> int:

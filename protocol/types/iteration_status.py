@@ -2,5 +2,6 @@ from enum import Enum
 
 
 class IterationStatus(Enum):
-    SLEEP: str = 0
-    FINISHED: str = 1
+    SLEEP: int = 0
+    FINISHED: int = 1
+    BUSY: int = 2

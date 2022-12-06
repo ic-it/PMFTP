@@ -1,21 +1,24 @@
-from io import BytesIO
 import logging
 import time
 
+from io import SEEK_END, SEEK_SET, BytesIO, FileIO
 from typing import Callable, Type, TypeVar
-from .types.packets.send_part_msg import SendPartMsgPacket
-from .types.packets.syn_send_msg import SynSendMsgPacket
+
 from .types.flags import Flags
-from .types.iteration_status import IterationStatus
+from .types.header import Header
+from .types.keychain import Keychain
+from .types.handlers import Handlers
 from .types.conn_side import ConnSide
 from .types.packets.base import Packet
 from .types.packets.syn import SynPacket
-from .types.packets.syn_ack import SynAckPacket
-from .types.header import Header
-from .types.keychain import Keychain
-from .types.conversation_status import ConversationStatus
-from .types.handlers import Handlers
 from .transfers.recv import RecvTransfer
+from .transfers.send import SendTransfer
+from .types.packets.syn_ack import SynAckPacket
+from .types.packets.send_part import SendPartPacket
+from .types.iteration_status import IterationStatus
+from .types.packets.syn_send_msg import SynSendMsgPacket
+from .types.conversation_status import ConversationStatus
+from .types.packets.syn_send_file import SynSendFilePacket
 
 
 LOG = logging.getLogger("Connection")
@@ -41,11 +44,17 @@ class Connection:
         self.__last_time = time.time()
         self.__keep_alive = 5
 
-        self.__transfers: dict[int, (RecvTransfer, BytesIO)] = {}
+        self.__transfers: dict[int, tuple[RecvTransfer | SendTransfer, BytesIO]] = {}
+
+        self._add_iterator = NotImplemented
 
     @property
     def other_side(self) -> ConnSide:
         return self.__other_side
+    
+    @property
+    def transfers_count(self) -> int:
+        return len(self.__transfers)
     
     def _build_header(self, flags: Flags, ack_number: int) -> Header:
         self.__sequence_number += 1
@@ -58,8 +67,6 @@ class Connection:
         packet = packet_factory(header=header)
         packet.data = data
         return packet
-    
-    def _add_iterator(self, iterator: Callable) -> None: NotImplemented
 
     def _recv(self, data: bytes) -> None:
         self.__sequence_number += 1
@@ -75,6 +82,11 @@ class Connection:
             return
         
         packet._private_key = self.__keychain.private_key
+
+        if packet.header.transfer_id in self.__transfers:
+            transfer, buffer = self.__transfers[packet.header.transfer_id]
+            transfer._recv(packet.downcast(SendPartPacket))
+            return
         self.__packet_queue.append(packet)
     
     def _send(self, packet: Packet) -> None:
@@ -97,39 +109,76 @@ class Connection:
         packet = self._build_packet(Flags.FIN)
         self._send(packet)
     
-    def send_message(self, message: bytes) -> None:
+    def send_message(self, message: bytes) -> SendTransfer:
         if not self.conversation_status.is_connected:
             LOG.debug(f"Connection is not established")
             raise Exception("Connection is not established")
-        
+
+        bio = BytesIO(message)
+
+        transfer = SendTransfer(self.__keychain.copy(), bio, Flags.MSG)
+        transfer._send = self._send
+        transfer._build_packet = self._build_packet
+
         packet = self._build_packet(
             Flags.SYN | Flags.SEND | Flags.MSG,
             packet_factory=SynSendMsgPacket
         )
         packet._public_key = self.__keychain.other_public_key
         packet.message_len = len(message)
+        packet.header.transfer_id = transfer.transfer_id
         self._send(packet.encrypt())
 
-        send_part = self._build_packet(
-            Flags.SEND | Flags.PART | Flags.MSG,
-            packet_factory=SendPartMsgPacket
+        self.__transfers[transfer.transfer_id] = (transfer, bio)
+        self._add_iterator(transfer._iterate)
+
+        return transfer
+    
+    def send_file(self, file_io: FileIO) -> SendTransfer:
+        if not self.conversation_status.is_connected:
+            LOG.debug(f"Connection is not established")
+            raise Exception("Connection is not established")
+        
+        file_io.seek(0, SEEK_END)
+        file_size = file_io.tell()
+        file_io.seek(0)
+
+        transfer = SendTransfer(self.__keychain.copy(), file_io, Flags.FILE)
+        transfer._send = self._send
+        transfer._build_packet = self._build_packet
+
+        packet = self._build_packet(
+            Flags.SYN | Flags.SEND | Flags.FILE,
+            packet_factory=SynSendFilePacket
         )
-        send_part._public_key = self.__keychain.other_public_key
-        send_part.insertion_point = 0
-        send_part.message = message
-        self._send(send_part.encrypt())
+        packet._public_key = self.__keychain.other_public_key
+        packet.filename = file_io.name
+        packet.data_len = file_size
+
+        packet.header.transfer_id = transfer.transfer_id
+        self._send(packet.encrypt())
+
+        self.__transfers[transfer.transfer_id] = (transfer, file_io)
+        self._add_iterator(transfer._iterate)
+
+        return transfer
     
     def _keep_alive(self) -> bool:
-        if time.time() - self.__last_time > self.__keep_alive:
-            self._send(self._build_packet(Flags.ACK | Flags.UNACK))
-            self.__last_time = time.time()
-        
         unuck_keep_alive = [packet for packet in self.__wait_for_acknowledgment if packet.header.flags == (Flags.ACK | Flags.UNACK)]
 
         if len(unuck_keep_alive) > 3:
             self.disconnect()
             self.conversation_status.is_incorrect_disconnected = True
             return False
+
+        if not self.conversation_status.is_connected and time.time() - self.__last_time > self.__keep_alive:
+            self.connect()
+            self.__last_time = time.time()
+            return True
+
+        if time.time() - self.__last_time > self.__keep_alive:
+            self._send(self._build_packet(Flags.ACK | Flags.UNACK))
+            self.__last_time = time.time()
         return True
     
     def _send_ack(self, packet: Packet) -> None:
@@ -157,37 +206,69 @@ class Connection:
         new_packet = self._build_packet(Flags.FIN | Flags.ACK, packet.header.seq_number)
         
         self._send(new_packet)
-        self.__handlers.on_disconnect(self)
     
     def _process_fin_ack(self, packet: Packet) -> None:
-        self.__handlers.on_disconnect(self)
+        ...
     
     def _process_ack_unack(self, packet: Packet) -> None: # keep alive
         self._send_ack(packet)
 
     def _process_syn_send(self, packet: Packet) -> None:
-        if packet & Flags.MSG:
+        if packet.header.flags & Flags.MSG == Flags.MSG:
             self._process_syn_send_msg(packet.downcast(SynSendMsgPacket))
+        elif packet.header.flags & Flags.FILE == Flags.FILE:
+            self._process_syn_send_file(packet.downcast(SynSendFilePacket))
     
     def _process_syn_send_msg(self, packet: SynSendMsgPacket) -> None:
         packet._private_key = self.__keychain.private_key
         packet.decrypt()
 
-        bio = BytesIO()
+        bio = BytesIO(b'')
         transfer = RecvTransfer(
             packet.message_len,
             packet.header.transfer_id,
             self.__keychain,
-            bio
+            bio,
+            Flags.MSG
         )
+        transfer._send = self._send
+        transfer._build_packet = self._build_packet
         self.__transfers[packet.header.transfer_id] = transfer, bio
         self._add_iterator(transfer._iterate)
+    
+    def _process_syn_send_file(self, packet: SynSendFilePacket) -> None:
+        packet._private_key = self.__keychain.private_key
+        packet.decrypt()
 
+        bio = BytesIO(b'')
+        transfer = RecvTransfer(
+            packet.data_len,
+            packet.header.transfer_id,
+            self.__keychain,
+            bio,
+            Flags.FILE,
+            packet.filename
+        )
+        transfer._send = self._send
+        transfer._build_packet = self._build_packet
+        self.__transfers[packet.header.transfer_id] = transfer, bio
+        self._add_iterator(transfer._iterate)
 
 
     def _iterate(self) -> IterationStatus:
         if not self._keep_alive():
             return IterationStatus.FINISHED
+        
+        for transfer_id, (transfer, io_) in list(self.__transfers.items()):
+            if isinstance(transfer, RecvTransfer) and transfer.done:
+                if transfer.data_type == Flags.MSG:
+                    self.__handlers.on_message(self, io_.getvalue())
+                if transfer.data_type == Flags.FILE:
+                    self.__handlers.on_file(self, io_, transfer.filename)
+            
+            if transfer.done:
+                del self.__transfers[transfer_id]
+            
 
         while len(self.__packet_queue) > 0:
 
@@ -199,21 +280,12 @@ class Connection:
             
             if packet.header.flags == (Flags.SYN | Flags.ACK):
                 self._process_syn_ack(packet.downcast(SynAckPacket))
-            
-            if packet.header.flags & (Flags.SYN | Flags.SEND):
-                packet = packet.downcast(SynSendMsgPacket)
-                packet._private_key = self.__keychain.private_key
-                packet.decrypt()
-                print(packet.message_len)
-            
-            # if packet.header.flags == Flags.SEND | Flags.PART | Flags.MSG:
-            #     packet = packet.downcast(SendPartMsgPacket)
-            #     packet._private_key = self.__keychain.private_key
-            #     packet.decrypt()
-            #     print(packet.message)
 
             if packet.header.flags == Flags.FIN:
                 self._process_fin(packet)
+            
+            if packet.header.flags & (Flags.SYN | Flags.SEND) == (Flags.SYN | Flags.SEND):
+                self._process_syn_send(packet)
 
             if packet.header.flags == (Flags.FIN | Flags.ACK):
                 self._process_fin_ack(packet)
@@ -224,7 +296,8 @@ class Connection:
             if packet.header.flags & Flags.ACK:
                 self._recv_ack(packet)
         
-        if self.conversation_status.is_disconnected:
+        if self.conversation_status.is_disconnected and len(self.__transfers) == 0:
+            self.__handlers.on_disconnect(self)
             return IterationStatus.FINISHED
     
         return IterationStatus.SLEEP

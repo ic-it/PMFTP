@@ -41,6 +41,10 @@ class Socket:
         self._handlers.on_message = func
         return func
     
+    def on_file(self, func: Callable) -> Callable:
+        self._handlers.on_file = func
+        return func
+    
     def on_disconnect(self, func: Callable) -> Callable:
         self._handlers.on_disconnect = func
         return func
@@ -134,15 +138,21 @@ class Socket:
             return
 
         for iterator in self._iterators_queue:
-            status = iterator()
-            if status == IterationStatus.FINISHED:
-                self._iterators_queue.remove(iterator)
-                self.clear_connections()
+            for i in range(10):
+                status = iterator()
+                if status == IterationStatus.FINISHED:
+                    self._iterators_queue.remove(iterator)
+                    self.clear_connections()
+                    break
+                elif status == IterationStatus.SLEEP:
+                    break
+                elif status == IterationStatus.BUSY:
+                    continue
 
     def listen(self) -> None:
         while self.is_bound:
             self.iterate_loop()
-            time.sleep(0.01)
+            time.sleep(0.001)
     
     def unbind(self) -> None:
         if self._socket is None:

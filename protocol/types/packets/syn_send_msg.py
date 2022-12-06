@@ -3,8 +3,7 @@ from ..flags import Flags
 
 class SynSendMsgPacket(Packet):
     def _post_init_(self, *args, **kwargs) -> None:
-        self._auto_encrypt_decrypt = True
-        self.header.flags |= Flags.SYN | Flags.SEND | Flags.MSG
+        self.header.flags = Flags.SYN | Flags.SEND | Flags.MSG
 
     @property
     def message_len(self) -> int:
