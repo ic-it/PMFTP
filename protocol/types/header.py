@@ -1,7 +1,7 @@
-from ctypes import c_uint32, c_uint16
+from ctypes import c_uint32, c_uint16, c_int64
 from .flags import Flags
 
-HEADER_SIZE = 13 # bytes
+HEADER_SIZE = 21 # bytes
 
 class Header:
     def __init__(self, seq_number: int = 0, ack_number: int = 0,
@@ -13,6 +13,7 @@ class Header:
         self.__flags = flags
         self.__transfer_id = c_uint16(transfer_id)
         self.__checksum = c_uint16(checksum)
+        self.__timeout = c_int64(0)
         
     @property
     def seq_number(self) -> int:
@@ -49,6 +50,15 @@ class Header:
     @checksum.setter
     def checksum(self, checksum: int) -> None:
         self.__checksum = c_uint16(checksum)
+    
+    @property
+    def timeout(self) -> int:
+        return self.__timeout.value / 1000
+    
+    @timeout.setter
+    def timeout(self, timeout: int) -> None:
+        timeout = int(timeout * 1000)
+        self.__timeout = c_int64(timeout)
 
     def dump(self) -> bytes:
         return (
@@ -57,6 +67,7 @@ class Header:
             + self.__flags.value.to_bytes(1, byteorder='big') 
             + self.__transfer_id.value.to_bytes(2, byteorder='big')
             + self.__checksum.value.to_bytes(2, byteorder='big')
+            + self.__timeout.value.to_bytes(8, byteorder='big')
         )
     
     def load(self, data: bytes) -> None:
@@ -65,6 +76,7 @@ class Header:
         self.__flags = Flags(int.from_bytes(data[8:9], byteorder='big'))
         self.__transfer_id = c_uint16(int.from_bytes(data[9:11], byteorder='big'))
         self.__checksum = c_uint16(int.from_bytes(data[11:13], byteorder='big'))
+        self.__timeout = c_int64(int.from_bytes(data[13:21], byteorder='big'))
     
     def __str__(self) -> str:
         return (
@@ -72,7 +84,9 @@ class Header:
             f"ack_number={self.__ack_number.value}, "
             f"flags={self.__flags.__repr__()}, "
             f"__transfer_id={self.__transfer_id.value}, "
-            f"checksum={self.__checksum.value})"
+            f"checksum={self.__checksum.value}, "
+            f"timeout={self.__timeout.value})"
+            
         )
 
     def __repr__(self) -> str:

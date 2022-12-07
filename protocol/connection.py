@@ -1,7 +1,9 @@
 import logging
+from random import randint
 import time
 
 from io import SEEK_END, SEEK_SET, BytesIO, FileIO
+from tempfile import NamedTemporaryFile
 from typing import Callable, Type, TypeVar
 
 from .types.flags import Flags
@@ -42,7 +44,7 @@ class Connection:
         self.__window_size = 10
         self.__wait_for_acknowledgment: list[Packet] = []
         self.__last_time = time.time()
-        self.__keep_alive = 5
+        self.__keep_alive = 2
 
         self.__transfers: dict[int, tuple[RecvTransfer | SendTransfer, BytesIO]] = {}
 
@@ -78,7 +80,7 @@ class Connection:
 
         if not packet.is_packet_valid:
             self._send(self._build_packet(Flags.UNACK, packet.header.seq_number))
-            LOG.debug(f"Packet is not valid")
+            LOG.warning(f"Packet is not valid")
             return
         
         packet._private_key = self.__keychain.private_key
@@ -240,6 +242,8 @@ class Connection:
         packet._private_key = self.__keychain.private_key
         packet.decrypt()
 
+        # bio = NamedTemporaryFile('wb+', delete=True)
+        # bio = open(f"TEMP-{randint(0, 10000)}", 'ab')
         bio = BytesIO(b'')
         transfer = RecvTransfer(
             packet.data_len,
@@ -256,7 +260,11 @@ class Connection:
 
 
     def _iterate(self) -> IterationStatus:
-        if not self._keep_alive():
+        if self.conversation_status.is_disconnected and len(self.__transfers) == 0 or not self._keep_alive():
+            for transfer_id, (transfer, io_) in list(self.__transfers.items()):
+                transfer.kill()
+            
+            self.__handlers.on_disconnect(self)
             return IterationStatus.FINISHED
         
         for transfer_id, (transfer, io_) in list(self.__transfers.items()):
@@ -295,9 +303,5 @@ class Connection:
             
             if packet.header.flags & Flags.ACK:
                 self._recv_ack(packet)
-        
-        if self.conversation_status.is_disconnected and len(self.__transfers) == 0:
-            self.__handlers.on_disconnect(self)
-            return IterationStatus.FINISHED
     
         return IterationStatus.SLEEP

@@ -4,13 +4,26 @@ import time
 from protocol.socket import Socket 
 from protocol.types.conn_side import ConnSide
 
-# logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 
 UDP_IP = "127.0.0.1"
 UDP_PORT = 5006
 
 with Socket(UDP_IP, UDP_PORT) as socket:
+    @socket.on_file
+    def on_file(conn, file, filename: str):
+        file.seek(0)
+
+        if '/' in filename:
+            filename = filename.replace('/', '\\')
+
+        with open(f"SND{filename}", "wb") as f:
+            f.write(file.read())
+        
+        print(f"File {filename}")
+
+    
     conn = socket.connect(
         ConnSide(UDP_IP, 5005)
     )
@@ -23,17 +36,14 @@ with Socket(UDP_IP, UDP_PORT) as socket:
         print("Connection failed")
         exit(1)
     
-    trnsfer1 = conn.send_file(open("../test.pdf", "rb"))
+    trnsfer1 = conn.send_file(open("../IMG1.svg", "rb"))
 
-    test = 0
     while not trnsfer1.done:
-        # if test % 100 == 0:
-        #     conn.send_message(f"Progress: {trnsfer1.progress: .2f}% {trnsfer1.window_fill}".encode())
-        test += 1
         socket.iterate_loop()
         print(f"Progress: {trnsfer1.progress: .2f}% {trnsfer1.window_fill}", end="\r")
-        time.sleep(0.01)
-    
+
+        
+
     while conn.transfers_count:
         socket.iterate_loop()
         time.sleep(0.1)

@@ -138,7 +138,7 @@ class Socket:
             return
 
         for iterator in self._iterators_queue:
-            for i in range(10):
+            for i in range(40):
                 status = iterator()
                 if status == IterationStatus.FINISHED:
                     self._iterators_queue.remove(iterator)
@@ -152,7 +152,6 @@ class Socket:
     def listen(self) -> None:
         while self.is_bound:
             self.iterate_loop()
-            time.sleep(0.001)
     
     def unbind(self) -> None:
         if self._socket is None:
