@@ -28,7 +28,8 @@ class SendTransfer:
     def __init__(self,
                  keychain: Keychain,
                  send_stram: BytesIO,
-                 data_type: Flags
+                 data_type: Flags,
+                 part_size: int = PART_SIZE
                  ) -> None:
         self.__last_recv_time = time()
         

@@ -2,12 +2,12 @@ import logging
 
 from io import BytesIO
 from time import time
-from typing import Type, TypeVar
 from ..types.flags import Flags
+from typing import Type, TypeVar
+from ..types.keychain import Keychain
 from ..types.packets.base import Packet
 from ..types.packets.send_part import SendPartPacket
 from ..types.iteration_status import IterationStatus
-from ..types.keychain import Keychain
 
 
 LOG = logging.getLogger("RecvTransfer")

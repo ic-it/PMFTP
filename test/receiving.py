@@ -1,11 +1,11 @@
 import logging
+import time
 
 from io import BytesIO
 from random import randint
-import time
-from protocol.connection import Connection 
 
-from protocol.socket import Socket
+from protocol.connection import Connection 
+from protocol.connection import Socket
 
 logging.basicConfig(level=logging.INFO)
 

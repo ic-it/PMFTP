@@ -8,7 +8,7 @@ class SynSendFilePacket(Packet):
 
     @property
     def data_len(self) -> int:
-        return int.from_bytes(self.data[0:4], byteorder='big')
+        return int.from_bytes(self.data[:4], byteorder='big')
 
     @data_len.setter
     def data_len(self, data_len: int) -> None:
