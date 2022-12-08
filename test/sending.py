@@ -7,7 +7,7 @@ from protocol.types.conn_side import ConnSide
 logging.basicConfig(level=logging.INFO)
 
 
-UDP_IP = "10.62.13.17"
+UDP_IP = "10.62.44.29"
 UDP_PORT = 5006
 
 with Socket(UDP_IP, UDP_PORT) as socket:
@@ -36,11 +36,13 @@ with Socket(UDP_IP, UDP_PORT) as socket:
         print("Connection failed")
         exit(1)
     
-    trnsfer1 = conn.send_file(open("../IMG_3887.png", "rb"))
+    trnsfer1 = conn.send_file(open("../IMG2.jpg", "rb"))
 
     while not trnsfer1.done:
         socket.iterate_loop()
         print(f"Progress: {trnsfer1.progress: .2f}% {trnsfer1.window_fill}", end="\r")
+
+        
 
     while conn.transfers_count:
         socket.iterate_loop()

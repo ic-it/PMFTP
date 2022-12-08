@@ -3,15 +3,14 @@ import time
 
 from io import BytesIO
 from random import randint
-
 from protocol.connection import Connection 
 from protocol.socket import Socket
+
 
 logging.basicConfig(level=logging.INFO)
 
 UDP_IP = "10.62.13.17"
 UDP_PORT = 5005
-
 socket = Socket(UDP_IP, UDP_PORT)
 
 @socket.on_connect

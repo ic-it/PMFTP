@@ -1,17 +1,23 @@
-from protocol.types.packets.syn_send_file import SynSendFilePacket
-from protocol.types.header import Header
+from time import sleep
+from threading import Thread
 
-packet = SynSendFilePacket(header=Header())
+inp_queue: list[str] = []
 
-print(packet.data)
 
-packet.data_len = 12312312
+def reader(inp_queue_: list[str]):
+    while True:
+        data = input()
+        inp_queue_.append(data)
 
-print(packet.data)
 
-packet.filename = "test"
+def writer(inp_queue_: list[str]):
+    while True:
+        while len(inp_queue_) > 0:
+            data = inp_queue_.pop()
+            print(f"reader: {data}")
+        sleep(0.1)
 
-print(packet.data)
 
-print(packet.filename)
-print(packet.data_len)
+Thread(target=reader, args=(inp_queue,)).start()
+
+writer(inp_queue)

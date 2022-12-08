@@ -162,6 +162,9 @@ class Socket:
             LOG.warning("Socket already unbound")
             return
         
+        for conn in self._connections:
+            conn.disconnect()
+        
         self._socket.close()
         self._socket = None
         self._iterators_queue = None
