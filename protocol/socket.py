@@ -61,7 +61,11 @@ class Socket:
             return IterationStatus.FINISHED
         
         for key, _ in self._socket_selector.select(timeout=0):
-            data, (ip, port) = key.fileobj.recvfrom(1024)
+            try:
+                data, (ip, port) = key.fileobj.recvfrom(1024)
+            except ConnectionResetError:
+                LOG.warning("Connection reset")
+                continue
             side = ConnSide(ip, port)
         
             connection = self.get_connection_by_side(side)

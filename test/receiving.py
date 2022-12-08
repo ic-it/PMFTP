@@ -5,11 +5,11 @@ from io import BytesIO
 from random import randint
 
 from protocol.connection import Connection 
-from protocol.connection import Socket
+from protocol.socket import Socket
 
 logging.basicConfig(level=logging.INFO)
 
-UDP_IP = "127.0.0.1"
+UDP_IP = "10.62.13.17"
 UDP_PORT = 5005
 
 socket = Socket(UDP_IP, UDP_PORT)
@@ -20,7 +20,7 @@ def on_connect(conn: Connection):
         socket.iterate_loop()
         time.sleep(1)
     
-    conn.send_file(open("../IMG2.svg", "rb"))
+    conn.send_file(open("../IMG_3887.png", "rb"))
     print("Connected handler")
 
 
@@ -28,12 +28,13 @@ def on_connect(conn: Connection):
 def on_message(conn: Connection, message: bytes):
     print(f"Message: {message.decode('utf-8')}")
 
+
 @socket.on_file
 def on_file(conn: Connection, file: BytesIO, filename: str):
     file.seek(0)
 
     if '/' in filename:
-        filename = filename.replace('/', '\\')
+        filename = filename.replace('/', '|')
 
     with open(f"RECV{filename}", "wb") as f:
         f.write(file.read())
