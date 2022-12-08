@@ -9,199 +9,137 @@
 ## Contents
 - [Introduction](#introduction)
 - [Header structure](#header-structure)
-    - [SEQ Number field](#seq-number-field)
-    - [ACK Number field](#ack-number-field)
-    - [Flags field](#flags-field)
-        - [SYN flag](#syn-flag)
-        - [ACK flag](#ack-flag)
-        - [UACK flag](#ack-flag)
-        - [FIN flag](#fin-flag)
-        - [SEND flag](#send-flag)
-        - [PART flag](#part-flag)
-        - [MSG flag](#msg-flag)
-        - [FILE flag](#file-flag)
-        - [KAL flag](#kal-flag)
-    - Flags Combinations
-        - [SYN-ACK](#syn-ack)
-        - [ACK-FIN](#ack-fin)
-        - [SYN-SEND-MSG](#syn-send-msg)
-        - [SYN-SEND-FILE](#syn-send-file)
-        - [SEND-PART-MSG](#send-part-msg)
-        - [SEND-PART-FILE](#send-part-file)
-        - [FIN-SEND](#fin-send)
-    - [Window Size field](#window-size-field)
-    - [Checksum field](#checksum-field)
-        - [Checksum calculation](#checksum-calculation)
-    - [Length field](#length-field)
-    - [Header schema](#header-schema)
+    - [Seq number](#seq-number)
+    - [Ack number](#sck-number)
+    - [flags](#Flags)
+        - [SYN](#syn)
+        - [ACK](#ack)
+        - [UNACK](#unack)
+        - [FIN](#fin)
+        - [SEND](#send)
+        - [PART](#part)
+        - [MSG](#msg)
+        - [FILE](#file)
+    - [Transfer id](#transfer-id)
+    - [Checksum](#checksum)
+    - [Timeout](#timeout)
 - [Data structure](#data-structure)
-    - [SYN](#syn-data-structure)
-    - [SYN-ACK](#syn-ack-data-structure)
-    - [SYN-SEND-MSG](#syn-send-msg-data-structure)
-    - [SYN-SEND-FILE](#syn-send-file-data-structure)
-    - [SEND-PART-MSG](#send-part-msg-data-structure)
-    - [SEND-PART-FILE](#send-part-file-data-structure)
-- [ARQ (Automatic Repeat Request)](#arq-automatic-repeat-request)
-- [Keep Alive](#keep-alive)
-- [Error handling](#error-handling)
-    - [Packet Error](#packet-error)
-    - [Connection Error](#connection-error)
-- [Encryption](#encryption)
-- [Diagrams](#uml-diagrams)
-- [Features](#features)
+    - [syn](#syn-ds)
+    - [syn-ack](#syn-ack)
+    - [syn-send](#syn-send)
+        - [syn-send-msg](#syn-send-msg)
+        - [syn-send-file](#syn-send-file)
+    - [send-part](#send-part)
+- [Protocol features](#protocol-features)
+    - [Program hierarchy](#program-hierarchy)
+    - [Encryption](#encryption)
+    - [Binary transfer](#binary-transfer)
+    - [Error emulation](#error-emulation)
+- [Test client](#test-client)
+- [License](#license)
 
 ## Introduction
-First by first, my protocol will be based on the [UDP](https://wikipedia.org/wiki/User_Datagram_Protocol) protocol, but I guarantee data integrity (It will be [TCP](https://wikipedia.org/wiki/Transmission_Control_Protocol) like). And maybe I will add RSA encryption to the protocol. (Or at least Caesar cipher XD)
+This document describes the specification of the Protected Message/File Transport Protocol (PMFTP). The protocol is designed to provide a secure and reliable transport of messages and files between two hosts. The protocol is based on UDP protocol. The protocol is designed by [Illia Chaban](https://github.com/ic-it).  
+Used simple checksum algorithm is based on [RFC1071](https://tools.ietf.org/html/rfc1071). 
+Used encryption algorithm is based on [AES](https://en.wikipedia.org/wiki/Advanced_Encryption_Standard).  
 
 ## Header structure
+The header of the packet is 21 bytes long. The header is divided into 6 fields. The fields are described below.
 
-### SEQ Number field
-This field is 32-bit long and it is used to identify the sequence number of the packet. It is used to identify the order of the packets. 
+### Seq number
+Individual packet number 
 
-### ACK Number field
-This field is 32-bit long and it is used to identify the sequence number of the packet that is being acknowledged. It is used to identify the order of the packets.
+### Ack number
+Acknowledgment number
 
-### Flags field
-This field is 9-bit long and it is used to identify the type of the packet.
-| SYN | ACK | UACK | FIN | SEND | PART | MSG | FILE | KAL  | COMBINATION |
-|:---:|:---:|:----:|:---:|:----:|:----:|:---:|:----:|:----:| :---------: |
-|  1  |  0  |  0   |  0  |  0   |  0   |  0  |  0   |  0   | SYN         |
-|  0  |  1  |  0   |  0  |  0   |  0   |  0  |  0   |  0   | ACK         |
-|  0  |  0  |  1   |  0  |  0   |  0   |  0  |  0   |  0   | UACK        |
-|  0  |  0  |  0   |  1  |  0   |  0   |  0  |  0   |  0   | FIN         |
-|  1  |  1  |  0   |  0  |  0   |  0   |  0  |  0   |  0   | SYN-ACK     |
-|  0  |  1  |  0   |  1  |  0   |  0   |  0  |  0   |  0   | ACK-FIN     |
-|  1  |  0  |  0   |  0  |  1   |  0   |  1  |  0   |  0   | SYN-SEND-MSG|
-|  1  |  0  |  0   |  0  |  1   |  0   |  0  |  1   |  0   | SYN-SEND-FILE|
-|  0  |  0  |  0   |  0  |  1   |  1   |  1  |  0   |  0   | SEND-PART-MSG|
-|  0  |  0  |  0   |  0  |  1   |  1   |  0  |  1   |  0   | SEND-PART-FILE|
-|  0  |  0  |  0   |  1  |  1   |  0   |  0  |  0   |  0   | FIN-SEND    |
-|  0  |  0  |  0   |  0  |  0   |  0   |  0  |  0   |  1   | KAL         |
+### Flags
+The flags field is 1 byte long. The flags field is divided into 8 bits. The bits are described below.
+- #### SYN
+    SYN flag is used to initiate a connection. The SYN flag is set to 1 when the SYN packet is sent. The SYN flag is set to 0 when the SYN-ACK packet is sent.  
+    And using for the first packet of the file transfer.
 
-- #### SYN flag
-    - Syncronization flag
-    - This flag is used to identify the packet as a initial packet. It is used to start the connection.
-    - #### SYN-ACK
-        - This flag is used to identify the packet as a initial packet. It is used to start the connection.
-- #### ACK flag
-    - Acknowledgment flag
-    - This flag is used to identify the packet as a acknowledgment packet.
-- #### UACK flag
-    - UnAcknowledgment flag
-    - This flag is used to identify the packet as a unacknowledgment packet.
-- #### FIN flag
-    - Finish flag
-    - This flag is used to identify the packet as a finish packet.
-    - In single, this flag is used to identify the last packet of the communication.
-    - #### ACK-FIN
-        - This flag combination is used to identify the packet as a acknowledgment packet and a finish packet.
-- #### SEND flag
-    - Send Data Flag
-    - This flag is used to identify the packet as a data packet.
-    - #### SYN-SEND-MSG
-        - This flag combination is used to identify the packet as a initial packet and a message packet.
-    - #### SYN-SEND-FILE
-        - This flag combination is used to identify the packet as a initial packet and a file packet.
-    - #### FIN-SEND
-        - This flag combination is used to identify the packet as a finish packet and a data packet.
-- #### PART flag
-    - Part of Data Flag
-    - This flag is used to identify the packet as a part of the data packet.
-    - #### SEND-PART-MSG
-        - This flag combination is used to identify the packet as a data packet and a message packet.
-    - #### SEND-PART-FILE
-        - This flag combination is used to identify the packet as a data packet and a file packet.
-- #### MSG flag
-    - Message Flag
-    - This flag is used to identify the packet as a message packet.
-- #### FILE flag
-    - File Flag
-    - This flag is used to identify the packet as a file packet.
-- #### KAL flag
-    - Keep Alive Flag
-    - This flag is used to identify the packet as a keep alive packet.
+- #### ACK
+    ACK flag is used to acknowledge the receipt of a packet. 
+    And using for aknowledge the receipt of the parts of the data transfer.
 
-### Window Size field
-This field is 16-bit long and it is used to identify the size of the window.
+- #### UNACK
+    UNACK flag is used to acknowledge the receipt of a packet.
 
-### Checksum field
-This field is 16-bit long and it is used to identify the checksum of the packet.
+- #### FIN
+    FIN flag is used to terminate a connection.  
+    And using for the last packet of the file transfer.
 
-- #### Checksum calculation
-    Checksum like TCP is calculated by adding all the 16-bit words of the packet and then adding the carry bits. The checksum is the one's complement of the sum.
+- #### SEND
+    SEND flag is used to send a message.
 
-### Length field
-This field is 16-bit long and it is used to identify the length of the packet.
+- #### PART
+    PART flag is used to send a part of the file.
 
-### Header schema
-```
-            111111 11112222 22222233
- 01234567 89012345 67890123 45678901
-+--------++-------+--------+--------+
-|             SEQ number            | 32-bit
-+--------++-------+--------+--------+
-|             ACK number            | 32-bit
-+--------++-------+--------+--------+
-| Flags   |   Window Size   |         9-bit  | 16-bit
-+--------++-------+--------+--------+
-|    Checksum     |     Length      | 16-bit | 16-bit
-+--------++-------+--------+--------+
-```
-FULL HEADER SIZE: 121 bits
+- #### MSG
+    MSG flag is used to send a message.
+
+- #### FILE
+    FILE flag is used to send a file.
+
+### Transfer id
+Transfer id. Used to identify the transfer.
+
+### Checksum
+Checksum is used to verify the integrity of the packet. The checksum is calculated from the header and the data. The checksum is calculated using the [RFC1071](https://tools.ietf.org/html/rfc1071) algorithm.
+
+### Timeout
+Timeout is used to set the timeout for the packet. The timeout is set in milliseconds.
 
 ## Data structure
-### SYN data structure
-```
-PUBLIC KEY      | 256-bit
-WINDOW SIZE     | 16-bit
-```
+The data structure is divided into 4 parts. The parts are described below.
 
-### SYN-ACK data structure
-```
-PUBLIC KEY      | 256-bit
-WINDOW SIZE     | 16-bit
-```
+### syn (ds)
+The SYN packet is used to initiate a connection. The SYN packet contains publick key in data.
 
-### SYN SEND MSG data structure
-```
-MESSAGE LENGTH  | 32-bit
-```
-### SYN SEND FILE data structure
-```
-FILE NAME       | 256-bit
-FILE LENGTH     | 32-bit
-```
-### SEND PART MSG data structure
-```
-MESSAGE         | in header length
-```
+### syn-ack
+The SYN-ACK packet is used to acknowledge the receipt of a SYN packet. The SYN-ACK packet contains publick key in data.
 
-### SEND PART FILE data structure
-```
-FILE            | in header length
-```
+### syn-send
+The SYN-SEND packet is used to send a message or a file. 
 
-## ARQ (Automatic Repeat Request)
-I use [Selective Repeat](https://en.wikipedia.org/wiki/Selective_repeat) ARQ.
+- #### syn-send-msg
+    The SYN-SEND-MSG packet is used to send a message. The SYN-SEND-MSG packet contains the message length in the data.
 
-## Keep Alive
-I use a keep alive packet to keep the connection alive. The keep alive packet is sent every 5 seconds.
+- #### syn-send-file
+    The SYN-SEND-FILE packet is used to send a file. The SYN-SEND-FILE packet contains the file length and file name in the data.
 
-## Error handling
-### Packet error
-If the packet is corrupted, the receiver will send an unacknowledgment packet to the sender.
+### send-part
+The SEND-PART packet is used to send a part of the file. The SEND-PART packet contains the part of the file and position in the stram in the data.
 
-### Connection error
-If the connection is lost, the receiver will send a keep alive packet to the sender. If the sender doesn't receive the keep alive packet, the sender will close the connection.
+## Protocol features
 
-# Encryption
-!Not implemented yet!
+### Program hierarchy
+The program is divided into 3 parts.  
+Implementation — is a complex system for distributing packets between the layers.  
+The first layer is Socket, it creates connections. If a packet belongs to a connection, it passes it to the desired connection.  
+The connection in turn distributes the packets within itself, leaving the necessary ones in itself and the rest to the transfers.  
 
-# Diagram
-![Diagram](./diagram.svg)
+Each level has its own iterator, which is run in priority by the socket. Each iterator has three states: Busy, Sleep and Finish.  
+Busy: more iterations are required  
+Sleep: pass the time to another iterator  
+Finish: end iterator.  
+The maximum number of iterations of one iterator in a given iteration of the loop = 40  
 
-# Features
-- Libs
-    - [Socket](https://docs.python.org/3/library/socket.html)
-- Without threads
-- Using yields (generators)
+This architecture does not require threads for new connections.
+
+![diagram](./diagram.svg)
+
+### Encryption
+Header is not encrypted. This is done to save resources and seriously, there is nothing important in the header `\_(._.)_/`.
+
+### Binary transfer
+You can transmit data in both directions simultaneously.
+
+### Error emulation
+It is possible to intentionally break a random package. But it will just be ignored on the socket side and that's it.
+
+## Test client
+The test client is a simple client for testing the protocol. The test client knows how to connect to various other clients, transfer files and messages. 
+
+## License
+This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
