@@ -83,6 +83,10 @@ class Connection:
             LOG.warning(f"Packet is not valid")
             return
         
+        if packet.header.timeout != 0 and packet.header.timeout < time.time():
+            LOG.warning(f"Packet is timed out")
+            return
+        
         packet._private_key = self.__keychain.private_key
 
         if packet.header.transfer_id in self.__transfers:
@@ -94,6 +98,8 @@ class Connection:
     def _send(self, packet: Packet) -> None:
         LOG.debug(f"SEND: {packet}")
         self.__send_proxy(self.other_side, packet.dump())
+        if packet.header.transfer_id:
+            return
         self.__wait_for_acknowledgment.append(packet)
         self.conversation_status.new_packet(packet)
     
@@ -107,6 +113,9 @@ class Connection:
     
     def disconnect(self) -> None:
         LOG.debug(f"Disconnecting from {self.other_side}")
+
+        for transfer, _ in self.__transfers.values():
+            transfer.kill()
 
         packet = self._build_packet(Flags.FIN)
         self._send(packet)
@@ -136,7 +145,7 @@ class Connection:
 
         return transfer
     
-    def send_file(self, file_io: FileIO) -> SendTransfer:
+    def send_file(self, file_io: FileIO, fragment_size: int | None = None) -> SendTransfer:
         if not self.conversation_status.is_connected:
             LOG.debug(f"Connection is not established")
             raise Exception("Connection is not established")
@@ -145,7 +154,7 @@ class Connection:
         file_size = file_io.tell()
         file_io.seek(0)
 
-        transfer = SendTransfer(self.__keychain.copy(), file_io, Flags.FILE)
+        transfer = SendTransfer(self.__keychain.copy(), file_io, Flags.FILE, fragment_size)
         transfer._send = self._send
         transfer._build_packet = self._build_packet
 
@@ -242,9 +251,7 @@ class Connection:
         packet._private_key = self.__keychain.private_key
         packet.decrypt()
 
-        # bio = NamedTemporaryFile('wb+', delete=True)
-        # bio = open(f"TEMP-{randint(0, 10000)}", 'ab')
-        bio = BytesIO(b'')
+        bio = NamedTemporaryFile('w+b', delete=True)
         transfer = RecvTransfer(
             packet.data_len,
             packet.header.transfer_id,
@@ -270,9 +277,9 @@ class Connection:
         for transfer_id, (transfer, io_) in list(self.__transfers.items()):
             if isinstance(transfer, RecvTransfer) and transfer.done:
                 if transfer.data_type == Flags.MSG:
-                    self.__handlers.on_message(self, io_.getvalue())
+                    self.__handlers.on_message(self, io_.getvalue(), transfer.is_correct)
                 if transfer.data_type == Flags.FILE:
-                    self.__handlers.on_file(self, io_, transfer.filename)
+                    self.__handlers.on_file(self, io_, transfer.filename, transfer.is_correct)
             
             if transfer.done:
                 del self.__transfers[transfer_id]
@@ -288,6 +295,9 @@ class Connection:
             
             if packet.header.flags == (Flags.SYN | Flags.ACK):
                 self._process_syn_ack(packet.downcast(SynAckPacket))
+            
+            if not self.conversation_status.is_connected:
+                continue
 
             if packet.header.flags == Flags.FIN:
                 self._process_fin(packet)

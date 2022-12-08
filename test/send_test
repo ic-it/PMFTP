@@ -1,0 +1,5 @@
+
+connect 10.62.46.191:5006
+
+sendfile ../diagram
+

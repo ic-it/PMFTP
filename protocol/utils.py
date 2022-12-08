@@ -24,6 +24,14 @@ def encode_pubkey(pubkey: PUBLIC_KEY_T) -> bytes:
     return pubkey.to_bytes(32, byteorder='big')
 
 
+# def encrypt(data: bytes, public_key: int) -> bytes:
+#     return data
+
+# def decrypt(data: bytes, private_key: int) -> bytes:
+#     return data
+
+
+
 def seq_num_generator():
     seq_num = 0
     while True:

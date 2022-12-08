@@ -29,17 +29,25 @@ class SendTransfer:
                  keychain: Keychain,
                  send_stram: BytesIO,
                  data_type: Flags,
-                 part_size: int = PART_SIZE
+                 part_size: int | None = PART_SIZE
                  ) -> None:
         self.__last_recv_time = time()
         
         self.__timeout = 30
-        self.__packet_timeout = 10
+        self.__packet_timeout = 3
         self.__window: dict[SendPartPacket, int] = {}
         self.__window_size = 30
         self.__transfer_id = random.randint(0, 2**16)
         self.__keychain = keychain
         self.__data_type = data_type
+    
+        if part_size is None:
+            part_size = PART_SIZE
+
+        if part_size > PART_SIZE or part_size < 30 and part_size is not None:
+            raise ValueError(f"Part size must be between 30 and {PART_SIZE}")
+        
+        self.__part_size = part_size
 
         self.__send_stram = send_stram
         self.__send_stram.seek(0, io.SEEK_END)
@@ -61,7 +69,10 @@ class SendTransfer:
     
     @property
     def done(self) -> bool:
-        return self._got_fin or (self.__last_recv_time + self.__timeout < time()) or self.__killed
+        if self.__last_recv_time + self.__timeout < time():
+            LOG.red("Transfer timed out")
+            self.kill()
+        return self._got_fin or self.__killed
     
     @property
     def progress(self) -> float:
@@ -101,7 +112,7 @@ class SendTransfer:
         self.__send_stram.seek(0)
         while True:
             position = self.__send_stram.tell()
-            data = self.__send_stram.read(PART_SIZE)
+            data = self.__send_stram.read(self.__part_size)
 
             if len(data) == 0:
                 break
@@ -155,7 +166,7 @@ class SendTransfer:
             fin_send_packet: Packet = self._build_packet(Flags.SEND | Flags.FIN)
             fin_send_packet.header.transfer_id = self.__transfer_id
 
-            LOG.info(f"Sending FIN packet [{fin_send_packet.header.seq_number}]")
+            LOG.info(f"Sending FIN packet [{fin_send_packet.header.seq_number}] [{self._got_fin=} or {(self.__last_recv_time + self.__timeout < time())=} or {self.__killed=}]")
             self._send(fin_send_packet)
 
             if self.__timeout + self.__last_recv_time < time():

@@ -1,4 +1,6 @@
+from io import FileIO
 import os
+import sys
 import time
 import logging
 import socket
@@ -8,12 +10,20 @@ from threading import Thread
 from protocol.socket import Socket
 from protocol.connection import Connection
 from protocol.types.conn_side import ConnSide
+from protocol.transfers.send import SendTransfer
 
 logging.basicConfig(level=logging.INFO)
 
 UDP_IP = socket.gethostbyname(socket.gethostname())
 UDP_PORT = None
 RECVS_DIR = "recvs"
+
+console_width = os.get_terminal_size().columns
+console_height = os.get_terminal_size().lines
+
+def gotoxy(x,y):
+    print("%c[%d;%df" % (0x1B, y, x), end='')
+
 
 
 print(f"IP: {UDP_IP}")
@@ -29,17 +39,18 @@ while not UDP_PORT:
 
 sock = Socket(UDP_IP, UDP_PORT)
 
+sock.emulate_problems = True
+
 @sock.on_connect
 def on_connect(conn: Connection):
     print("\r\nConnected handler", conn.other_side)
 
-
 @sock.on_message
-def on_message(conn: Connection, message: bytes):
-    print(f"\r\nMessage: {message.decode('utf-8')} from {conn.other_side}")
+def on_message(conn: Connection, message: bytes, is_correct: bool):
+    print(f"\r\nMessage: {message.decode('utf-8')} from {conn.other_side} is correct: {is_correct}")
 
 @sock.on_file
-def on_file(conn: Connection, file, filename: str):
+def on_file(conn: Connection, file: FileIO, filename: str, is_correct: bool):
     file.seek(0)
 
     if '/' in filename:
@@ -50,12 +61,14 @@ def on_file(conn: Connection, file, filename: str):
     
     
     file_path = f"./{RECVS_DIR}/{filename}"
+    if os.path.exists(file_path):
+        file_path = f"./{RECVS_DIR}/{time.time()}_{filename}"
     file_path = os.path.abspath(file_path)
 
     with open(file_path, "wb") as f:
         f.write(file.read())
     
-    print(f"\r\nFile {file_path}")
+    print(f"\r\nFile {file_path} size: {os.path.getsize(file_path)} from {conn.other_side} is correct: {is_correct}")
 
 
 @sock.on_disconnect
@@ -63,15 +76,33 @@ def on_disconnect(conn: Connection):
     print("\r\nDisconnected handler", conn.other_side)
 
 
+def print_progress(transfer: SendTransfer):
+    while not transfer.done:
+        print(f"Sending {transfer.progress:.2f}%", end='\r')
+        sleep(0.01)
+
 
 sock.bind()
 
 
 def commandline(sock_: Socket):
-    conn = None
-    while True:
-        command = input("Enter command (sendfile/sendmsg, connect, connections, exit, swith): ").strip()
+    conn_ = None
 
+    while True:
+        try:
+            command = input(f"[{sock_.bound_on}]>> ").strip()
+        except EOFError:
+            print()
+            sys.stdin = open("/dev/tty")
+
+        if command == "help":
+            print("connect <ip:port> - connect to ip:port")
+            print("connections - list all connections")
+            print("switch <ip:port> - switch to connection")
+            print("sendfile <file> [fragment_size] - send file")
+            print("sendmsg <message> [fragment_size] - send message")
+            print("exit - exit")
+        
         if command.startswith("switch"):
             ip, port = command.split(" ")[1].split(":")
             new_conn = filter(lambda x: x.other_side == ConnSide(ip, int(port)), sock_._connections)
@@ -79,32 +110,51 @@ def commandline(sock_: Socket):
             if len(new_conn) == 0:
                 print("No connection found")
                 continue
-            conn = new_conn
+            conn_ = new_conn
+            continue
+            
         if command == "connections":
-            for conn in sock_._connections:
-                print(conn.other_side)
-        elif command.startswith("connect"):
+            for conn_ in sock_._connections:
+                print(conn_.other_side)
+            continue
+        
+        if command.startswith("connect"):
             command, side = command.split(" ", 1)
             ip, port = side.split(":")
             side = ConnSide(ip, int(port))
-            conn = sock_.connect(side)
+            conn_ = sock_.connect(side)
             print(f"Connected to {side}")
-        elif command.startswith("sendfile"):
-            if conn:
-                conn.send_file(open(command.split(" ")[1], "rb"))
+            continue
+        
+        if command.startswith("sendfile"):
+            if conn_:
+                fragment_size = None
+                if len(command.split(" ")) == 3:
+                    fragment_size = int(command.split(" ")[2])
+                try:
+                    transfer = conn_.send_file(open(command.split(" ")[1], "rb"), fragment_size=fragment_size)
+                    Thread(target=print_progress, args=(transfer, )).start()
+                except ValueError as e:
+                    print(e)
             else:
                 print("You need to connect first")
-        elif command.startswith("sendmsg"):
-            if conn:
-                conn.send_message(command.split(" ", 1)[1].encode("utf-8"))
+            continue
+        
+        if command.startswith("sendmsg"):
+            if conn_:
+                conn_.send_message(command.split(" ", 1)[1].encode("utf-8"))
             else:
                 print("You need to connect first")
-        elif command == "exit":
+            continue
+        
+        if command == "exit":
             sock_.unbind()
             break
-        else:
-            print("Unknown command")
-
+        
+        if command == "":
+            continue
+        
+        print("Unknown command")
 
 Thread(target=commandline, args=(sock, )).start()
 

@@ -1,3 +1,4 @@
+from random import randint
 import socket
 import logging
 import time
@@ -21,9 +22,11 @@ class Socket:
         self._socket: socket = None
         self._socket_selector: DefaultSelector = None
 
-        self._iterators_queue: list[Callable] = None
-        self._connections: list[Connection] = None
+        self._iterators_queue: list[Callable] = []
+        self._connections: list[Connection] = []
         self._handlers: Handlers = Handlers()
+
+        self.emulate_problems = False
     
     @property
     def bound_on(self) -> ConnSide:
@@ -67,7 +70,7 @@ class Socket:
                 LOG.warning("Connection reset")
                 continue
             side = ConnSide(ip, port)
-        
+
             connection = self.get_connection_by_side(side)
 
             if not connection:
@@ -83,6 +86,9 @@ class Socket:
         return IterationStatus.SLEEP
     
     def _send_to(self, side: ConnSide, data: bytes) -> None:
+        if self.emulate_problems and randint(0, 1000) < 5:
+            change_index = randint(0, len(data) - 1)
+            data = data[:change_index] + bytes([randint(0, 255)]) + data[change_index + 1:]
         self._socket.sendto(data, (side.ip, side.port))
     
     def _add_iterator(self, iterable: Generator) -> None:
@@ -145,7 +151,8 @@ class Socket:
             for i in range(40):
                 status = iterator()
                 if status == IterationStatus.FINISHED:
-                    self._iterators_queue.remove(iterator)
+                    if iterator in self._iterators_queue:
+                        self._iterators_queue.remove(iterator)
                     self.clear_connections()
                     break
                 elif status == IterationStatus.SLEEP:
@@ -155,6 +162,8 @@ class Socket:
 
     def listen(self) -> None:
         while self.is_bound:
+            if int(time.time()) % 10 == 0:
+                self.clear_connections()
             self.iterate_loop()
     
     def unbind(self) -> None:
@@ -167,8 +176,8 @@ class Socket:
         
         self._socket.close()
         self._socket = None
-        self._iterators_queue = None
-        self._connections = None
+        self._iterators_queue = []
+        self._connections = []
         LOG.debug("Socket unbound")
     
     def __enter__(self) -> "Socket":

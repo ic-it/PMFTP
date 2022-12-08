@@ -31,8 +31,8 @@ class RecvTransfer:
         self.__last_recv_time = time()
         self.__last_process_time = time()
 
-        self.__timeout = 30
-        self.__ack_timeout = 5
+        self.__timeout = 10
+        self.__ack_timeout = 3
         self.__process_window_tick = 0.05
 
         self.__max_ack_size = 30
@@ -57,6 +57,10 @@ class RecvTransfer:
         LOG.info(f"Transfer ID: {self.__transfer_id}")
     
     def _recv(self, packet: SendPartPacket) -> None:
+        if self.done:
+            LOG.yellow(f"Transfer already done [{self.__recived_data_length == self.__length=}, {self.__got_fin=}, {self.__killed=}]")
+            return
+        
         self.__last_recv_time = time()
         
         if packet.header.flags & Flags.ACK:
@@ -74,10 +78,20 @@ class RecvTransfer:
                 LOG.red(f"Packet [{packet.insertion_point}] timeout")
                 return
             self.__window.append(packet.decrypt())
+
+    @property
+    def is_correct(self) -> bool:
+        return self.__recived_data_length == self.__length
     
     @property
     def done(self) -> bool:
-        return self.__recived_data_length == self.__length and not len(self.__window) and not len(self._acks) or (self.__last_recv_time + self.__timeout < time()) or self.__got_fin or self.__killed
+        if self.is_correct:
+            return True
+        
+        if (self.__last_recv_time + self.__timeout < time()) or self.__got_fin or self.__killed: 
+            self.kill()
+
+        return self.__killed
 
     @property
     def data_type(self) -> Flags:
