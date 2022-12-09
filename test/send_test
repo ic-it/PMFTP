@@ -1,5 +1,5 @@
 
 connect 10.62.5.21:5006
 
-sendmsg _ 1
+sendmsg 2 Illia Chaban
 

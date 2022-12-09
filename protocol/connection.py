@@ -78,7 +78,7 @@ class Connection:
 
         packet = Packet().load(data)
 
-        LOG.debug(f"RECV: {packet}")
+        LOG.debug(f"Recived {len(data)} bytes from {self.other_side} with {packet.header.flags.__repr__()} flags")
 
         if not packet.is_packet_valid:
             self._send(self._build_packet(Flags.UNACK, packet.header.seq_number))
@@ -86,7 +86,6 @@ class Connection:
             return
         
         if not packet.header.flags == (Flags.ACK | Flags.UNACK): # test doimplementacji
-            # LOG.info(f'{packet.header.flags=}')
             self._size_of_accepted_headers += HEADER_SIZE
 
         if packet.header.timeout != 0 and packet.header.timeout < time.time():
@@ -104,11 +103,9 @@ class Connection:
     
     def _send(self, packet: Packet) -> None:
         if not packet.header.flags == (Flags.ACK | Flags.UNACK): # test doimplementacji
-            # LOG.info(f'{packet.header.flags=}')
             self._size_of_accepted_headers += HEADER_SIZE
-    
 
-        LOG.debug(f"SEND: {packet}")
+        LOG.debug(f"Sending {packet.header.flags.__repr__()} flags to {self.other_side}")
         self.__send_proxy(self.other_side, packet.dump())
         if packet.header.transfer_id:
             return
@@ -134,7 +131,7 @@ class Connection:
     
     def send_message(self, message: bytes, fragment_size: int | None = None) -> SendTransfer:
         if not self.conversation_status.is_connected:
-            LOG.debug(f"Connection is not established")
+            LOG.error(f"Connection is not established")
             raise Exception("Connection is not established")
 
         bio = BytesIO(message)
@@ -159,7 +156,7 @@ class Connection:
     
     def send_file(self, file_io: FileIO, fragment_size: int | None = None) -> SendTransfer:
         if not self.conversation_status.is_connected:
-            LOG.debug(f"Connection is not established")
+            LOG.error(f"Connection is not established")
             raise Exception("Connection is not established")
         
         file_io.seek(0, SEEK_END)
@@ -190,6 +187,7 @@ class Connection:
         unuck_keep_alive = [packet for packet in self.__wait_for_acknowledgment if packet.header.flags == (Flags.ACK | Flags.UNACK)]
 
         if len(unuck_keep_alive) > 3:
+            LOG.error(f"[_keep_alive] Connection is not established or is broken")
             self.disconnect()
             self.conversation_status.is_incorrect_disconnected = True
             return False

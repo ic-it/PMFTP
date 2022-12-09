@@ -13,7 +13,7 @@ from .utils import genereate_keys
 from .connection import Connection
 from .types.handlers import Handlers
 
-LOG = logging.getLogger("main_loop")
+LOG = logging.getLogger("Socket")
 
 class Socket:
     def __init__(self, ip: str, port: int) -> None:
@@ -74,6 +74,7 @@ class Socket:
                 LOG.warning("Connection reset")
                 continue
             side = ConnSide(ip, port)
+            LOG.debug(f"Received {len(data)} bytes from {side}")
 
             connection = self.get_connection_by_side(side)
 
@@ -94,6 +95,7 @@ class Socket:
             change_index = randint(0, len(data) - 1)
             data = data[:change_index] + bytes([randint(0, 255)]) + data[change_index + 1:]
         self._socket.sendto(data, (side.ip, side.port))
+        LOG.debug(f"Sent {len(data)} bytes to {side}")
     
     def _add_iterator(self, iterable: Generator) -> None:
         self._iterators_queue.append(iterable)
@@ -115,7 +117,7 @@ class Socket:
 
         self._add_iterator(self._iterate)
 
-        LOG.debug(f"Socket bound on {self._bound_on}")
+        LOG.info(f"Socket bound on {self._bound_on}")
     
     def connect(self, side: ConnSide) -> Connection:
         for connection in self._connections:
@@ -132,13 +134,12 @@ class Socket:
         connection.connect()
         
         return connection
-    
+
     def clear_connections(self) -> None:
         for conn in self._connections:
             if conn.conversation_status.is_disconnected:
-                LOG.info(f"Size of accepted headers: {conn._size_of_accepted_headers}")
+                LOG.debug(f"Accepted headers size (with {conn.other_side}): {conn._size_of_accepted_headers} bytes")
                 self._connections.remove(conn)
-                LOG.debug(f"Connection to {conn.other_side} finished")
 
     def disconnect(self, side: ConnSide) -> None:
         for conn in self._connections:
@@ -187,7 +188,7 @@ class Socket:
         self._socket = None
         self._iterators_queue = []
         self._connections = []
-        LOG.debug("Socket unbound")
+        LOG.info(f"Socket unbound on {self._bound_on}")
     
     def __enter__(self) -> "Socket":
         self.bind()

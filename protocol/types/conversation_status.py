@@ -1,6 +1,10 @@
+import logging
+
 from .flags import Flags
 from .packets.base import Packet
 
+
+LOG = logging.getLogger("ConversationStatus")
 
 class ConversationStatus:
     def __init__(self) -> None:
@@ -35,18 +39,23 @@ class ConversationStatus:
     
     def new_packet(self, packet: Packet) -> None:
         if packet.header.flags == Flags.SYN:
+            LOG.debug("New packet: SYN; is_connecting = True")
             self.__is_connecting = True
             self.__is_disconnected = False
         if packet.header.flags == (Flags.SYN | Flags.ACK):
+            LOG.debug("New packet: SYN | ACK; is_connecting = True")
             self.__is_connecting = True
             self.__is_connected = False
         if packet.header.flags == Flags.ACK and self.__is_connecting:
+            LOG.debug("New packet: ACK; is_connecting = False; is_connected = True")
             self.__is_connecting = False
             self.__is_connected = True
         if packet.header.flags == Flags.FIN:
+            LOG.debug("New packet: FIN; is_disconnected = True")
             self.__is_disconnected = True
             self.__is_connected = False
         if packet.header.flags == (Flags.FIN | Flags.ACK):
+            LOG.debug("New packet: FIN | ACK; is_disconnected = True")
             self.__is_disconnected = True
             self.__is_connected = False
     

@@ -12,7 +12,7 @@ from protocol.connection import Connection
 from protocol.types.conn_side import ConnSide
 from protocol.transfers.send import SendTransfer
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 UDP_IP = socket.gethostbyname(socket.gethostname())
 UDP_PORT = None
@@ -143,11 +143,15 @@ def commandline(sock_: Socket):
             continue
         
         if command.startswith("sendmsg"):
+            command = command.replace("sendmsg ", "")
             if conn_:
                 fragment_size = None
-                if len(command.split(" ")) == 3:
-                    fragment_size = int(command.split(" ")[2])
-                conn_.send_message(command.split(" ", 1)[1].encode("utf-8"), fragment_size=fragment_size)
+                try:
+                    fragment_size, msg = int(command.split(" ")[0]), command.split(" ")[1:]
+                except ValueError:
+                    pass
+                msg = ' '.join(msg)
+                conn_.send_message(msg.encode("utf-8"), fragment_size=fragment_size)
             else:
                 print("You need to connect first")
             continue
