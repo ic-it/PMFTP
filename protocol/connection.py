@@ -132,14 +132,14 @@ class Connection:
         packet = self._build_packet(Flags.FIN)
         self._send(packet)
     
-    def send_message(self, message: bytes) -> SendTransfer:
+    def send_message(self, message: bytes, fragment_size: int | None = None) -> SendTransfer:
         if not self.conversation_status.is_connected:
             LOG.debug(f"Connection is not established")
             raise Exception("Connection is not established")
 
         bio = BytesIO(message)
 
-        transfer = SendTransfer(self.__keychain.copy(), bio, Flags.MSG)
+        transfer = SendTransfer(self.__keychain.copy(), bio, Flags.MSG, fragment_size)
         transfer._send = self._send
         transfer._build_packet = self._build_packet
 

@@ -1,6 +1,5 @@
 
 connect 10.62.5.21:5006
 
-sendfile ../diagram
-
+sendmsg _ 1
 

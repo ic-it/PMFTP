@@ -44,8 +44,8 @@ class SendTransfer:
         if part_size is None:
             part_size = PART_SIZE
 
-        if part_size > PART_SIZE or part_size < 30 and part_size is not None:
-            raise ValueError(f"Part size must be between 30 and {PART_SIZE}")
+        if part_size > PART_SIZE - 30 or part_size <= 0 and part_size is not None:
+            raise ValueError(f"Part size must be between 1 and {PART_SIZE-30}")
         
         self.__part_size = part_size
 

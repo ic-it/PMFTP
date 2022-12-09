@@ -43,11 +43,11 @@ sock.emulate_problems = True
 
 @sock.on_connect
 def on_connect(conn: Connection):
-    print("\r\nConnected handler", conn.other_side)
+    print("Connected handler", conn.other_side)
 
 @sock.on_message
 def on_message(conn: Connection, message: bytes, is_correct: bool):
-    print(f"\r\nMessage: {message.decode('utf-8')} from {conn.other_side} is correct: {is_correct}")
+    print(f"Message: {message.decode('utf-8')} from {conn.other_side} is correct: {is_correct}")
 
 @sock.on_file
 def on_file(conn: Connection, file: FileIO, filename: str, is_correct: bool):
@@ -68,12 +68,12 @@ def on_file(conn: Connection, file: FileIO, filename: str, is_correct: bool):
     with open(file_path, "wb") as f:
         f.write(file.read())
     
-    print(f"\r\nFile {file_path} size: {os.path.getsize(file_path)} from {conn.other_side} is correct: {is_correct}")
+    print(f"File {file_path} size: {os.path.getsize(file_path)} from {conn.other_side} is correct: {is_correct}")
 
 
 @sock.on_disconnect
 def on_disconnect(conn: Connection):
-    print("\r\nDisconnected handler", conn.other_side)
+    print("Disconnected handler", conn.other_side)
 
 
 def print_progress(transfer: SendTransfer):
@@ -144,7 +144,10 @@ def commandline(sock_: Socket):
         
         if command.startswith("sendmsg"):
             if conn_:
-                conn_.send_message(command.split(" ", 1)[1].encode("utf-8"))
+                fragment_size = None
+                if len(command.split(" ")) == 3:
+                    fragment_size = int(command.split(" ")[2])
+                conn_.send_message(command.split(" ", 1)[1].encode("utf-8"), fragment_size=fragment_size)
             else:
                 print("You need to connect first")
             continue
