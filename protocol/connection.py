@@ -7,7 +7,7 @@ from tempfile import NamedTemporaryFile
 from typing import Callable, Type, TypeVar
 
 from .types.flags import Flags
-from .types.header import Header
+from .types.header import Header, HEADER_SIZE
 from .types.keychain import Keychain
 from .types.handlers import Handlers
 from .types.conn_side import ConnSide
@@ -50,6 +50,8 @@ class Connection:
 
         self._add_iterator = NotImplemented
 
+        self._size_of_accepted_headers = 0
+
     @property
     def other_side(self) -> ConnSide:
         return self.__other_side
@@ -83,6 +85,10 @@ class Connection:
             LOG.warning(f"Packet is not valid")
             return
         
+        if not packet.header.flags == (Flags.ACK | Flags.UNACK): # test doimplementacji
+            # LOG.info(f'{packet.header.flags=}')
+            self._size_of_accepted_headers += HEADER_SIZE
+
         if packet.header.timeout != 0 and packet.header.timeout < time.time():
             LOG.warning(f"Packet is timed out")
             return
@@ -94,8 +100,14 @@ class Connection:
             transfer._recv(packet.downcast(SendPartPacket))
             return
         self.__packet_queue.append(packet)
+
     
     def _send(self, packet: Packet) -> None:
+        if not packet.header.flags == (Flags.ACK | Flags.UNACK): # test doimplementacji
+            # LOG.info(f'{packet.header.flags=}')
+            self._size_of_accepted_headers += HEADER_SIZE
+    
+
         LOG.debug(f"SEND: {packet}")
         self.__send_proxy(self.other_side, packet.dump())
         if packet.header.transfer_id:

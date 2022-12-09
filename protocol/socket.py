@@ -36,6 +36,10 @@ class Socket:
     def is_bound(self) -> bool:
         return self._socket is not None
     
+    @property
+    def connections(self) -> list[Connection]:
+        return self._connections
+    
     def on_connect(self, func: Callable) -> Callable:
         self._handlers.on_connect = func
         return func
@@ -132,6 +136,7 @@ class Socket:
     def clear_connections(self) -> None:
         for conn in self._connections:
             if conn.conversation_status.is_disconnected:
+                LOG.info(f"Size of accepted headers: {conn._size_of_accepted_headers}")
                 self._connections.remove(conn)
                 LOG.debug(f"Connection to {conn.other_side} finished")
 
@@ -141,6 +146,10 @@ class Socket:
                 conn.disconnect()
                 self.clear_connections()
                 break
+    
+    def disconnect_all(self) -> None:
+        for conn in self._connections:
+            conn.disconnect()
     
     def iterate_loop(self) -> None:
         if self._socket is None:

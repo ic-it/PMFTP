@@ -123,6 +123,8 @@ def commandline(sock_: Socket):
             ip, port = side.split(":")
             side = ConnSide(ip, int(port))
             conn_ = sock_.connect(side)
+            while not conn_.conversation_status.is_connected:
+                sleep(0.1)
             print(f"Connected to {side}")
             continue
         
@@ -148,6 +150,9 @@ def commandline(sock_: Socket):
             continue
         
         if command == "exit":
+            sock_.disconnect_all()
+            while len(sock_._connections) > 0:
+                sleep(0.1)
             sock_.unbind()
             break
         
