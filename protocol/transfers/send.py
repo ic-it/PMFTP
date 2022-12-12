@@ -22,7 +22,7 @@ LOG.cyan = lambda x: LOG.info(f"\033[96m{x}\033[0m" + " "*20)
 
 _T = TypeVar("_T")
 
-PART_SIZE = 1024-HEADER_SIZE-10 # 1024 - header - 10 bytes for part number
+PART_SIZE = 1000-HEADER_SIZE-10 # 1024 - header - 10 bytes for part number
 
 class SendTransfer:
     def __init__(self,
@@ -33,10 +33,10 @@ class SendTransfer:
                  ) -> None:
         self.__last_recv_time = time()
         
-        self.__timeout = 30
-        self.__packet_timeout = 3
+        self.__timeout = 40
+        self.__packet_timeout = 4
         self.__window: dict[SendPartPacket, int] = {}
-        self.__window_size = 30
+        self.__window_size = 200
         self.__transfer_id = random.randint(0, 2**16)
         self.__keychain = keychain
         self.__data_type = data_type
@@ -85,6 +85,14 @@ class SendTransfer:
     @property
     def data_type(self) -> Flags:
         return self.__data_type
+    
+    @property
+    def filename(self) -> str:
+        return self.__send_stram.name if not isinstance(self.__send_stram, io.BytesIO) else "MessageTypeHasNoName"
+    
+    @property
+    def is_correct(self) -> bool:
+        return self._done and not self.__killed
     
     def kill(self) -> None:
         self.__killed = True

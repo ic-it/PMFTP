@@ -290,13 +290,17 @@ class Connection:
         for transfer_id, (transfer, io_) in list(self.__transfers.items()):
             if isinstance(transfer, RecvTransfer) and transfer.done:
                 if transfer.data_type == Flags.MSG:
-                    self.__handlers.on_message(self, io_.getvalue(), transfer.is_correct)
+                    self.__handlers.on_message_recv(self, io_.getvalue(), transfer.is_correct)
                 if transfer.data_type == Flags.FILE:
-                    self.__handlers.on_file(self, io_, transfer.filename, transfer.is_correct)
-            
-            if transfer.done:
+                    self.__handlers.on_file_recv(self, io_, transfer.filename, transfer.is_correct)
                 del self.__transfers[transfer_id]
-            
+            if isinstance(transfer, SendTransfer) and transfer.done:
+                if transfer.data_type == Flags.MSG:
+                    self.__handlers.on_message_send(self, io_.getvalue(), transfer.is_correct)
+                if transfer.data_type == Flags.FILE:
+                    self.__handlers.on_file_send(self, io_, transfer.filename, transfer.is_correct)
+                del self.__transfers[transfer_id]
+
 
         while len(self.__packet_queue) > 0:
 

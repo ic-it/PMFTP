@@ -24,7 +24,7 @@ for i, my_ip in enumerate(ips):
 ip_index = -1
 while ip_index not in range(len(ips)):
     try:
-        ip_index = int(input("Enter number: "))
+        ip_index = int(input("Enter number: ") or 0)
     except ValueError:
         print("Invalid number")
     if ip_index not in range(len(ips)):
@@ -59,13 +59,18 @@ sock = Socket(UDP_IP, UDP_PORT)
 
 @sock.on_connect
 def on_connect(conn: Connection):
-    print("Connected handler", conn.other_side)
+    print("\nConnected handler", conn.other_side)
 
-@sock.on_message
-def on_message(conn: Connection, message: bytes, is_correct: bool):
-    print(f"Message: {message.decode('utf-8')} from {conn.other_side} is correct: {is_correct}")
+@sock.on_message_recv
+def on_message_recv(conn: Connection, message: bytes, is_correct: bool):
+    print(f"\n({conn.other_side}, {is_correct=})<< {message.decode('utf-8')}")
 
-@sock.on_file
+@sock.on_message_send
+def on_message_send(conn: Connection, message: bytes, is_correct: bool):
+    print(f"\n({conn.other_side}, {is_correct=})>> {message.decode('utf-8')}")
+
+
+@sock.on_file_recv
 def on_file(conn: Connection, file: FileIO, filename: str, is_correct: bool):
     file.seek(0)
 
@@ -84,12 +89,16 @@ def on_file(conn: Connection, file: FileIO, filename: str, is_correct: bool):
     with open(file_path, "wb") as f:
         f.write(file.read())
     
-    print(f"File {file_path} size: {os.path.getsize(file_path)} from {conn.other_side} is correct: {is_correct}")
+    print(f"\nFile {file_path} size: {os.path.getsize(file_path)} from {conn.other_side} is correct: {is_correct}")
+
+@sock.on_file_send
+def on_file_send(conn: Connection, file: FileIO, filename: str, is_correct: bool):
+    print(f"\nFile {filename} size: {os.path.getsize(filename)} to {conn.other_side} is correct: {is_correct}")
 
 
 @sock.on_disconnect
 def on_disconnect(conn: Connection):
-    print("Disconnected handler", conn.other_side)
+    print("\nDisconnected handler", conn.other_side)
 
 
 sock.bind()
@@ -104,9 +113,11 @@ def commandline(sock_: Socket):
             progresses = []
             for tid, (transfer, tio) in conn_.transfers.items():
                 transfer: SendTransfer | RecvTransfer
-                progresses.append(f"{tid}{ '->' if isinstance(transfer, SendTransfer) else '<-' }{transfer.progress:.2f}%")
-            print(f"[{' '.join(progresses)}]")
-                
+                progresses.append(f"{transfer.filename}{ '->' if isinstance(transfer, SendTransfer) else '<-' }{transfer.progress:.2f}%")
+            if len(progresses) > 0:
+                send_in_s, recv_in_s = sock_.speed
+                print(f"({', '.join(progresses)}) Send: {send_in_s}B/s Recv: {recv_in_s}B/s")
+
         try:
             command = input(f"[{sock_.bound_on}]>> ").strip()
         except EOFError:

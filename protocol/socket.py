@@ -27,6 +27,11 @@ class Socket:
         self._handlers: Handlers = Handlers()
 
         self.emulate_problems = False
+
+        self._recv_per_second = 0
+        self._recv_per_second_last = time.time()
+        self._send_per_second = 0
+        self._send_per_second_last = time.time()
     
     @property
     def bound_on(self) -> ConnSide:
@@ -40,16 +45,28 @@ class Socket:
     def connections(self) -> list[Connection]:
         return self._connections
     
+    @property
+    def speed(self) -> tuple[int, int]:
+        return self._send_per_second, self._recv_per_second
+    
     def on_connect(self, func: Callable) -> Callable:
         self._handlers.on_connect = func
         return func
     
-    def on_message(self, func: Callable) -> Callable:
-        self._handlers.on_message = func
+    def on_message_recv(self, func: Callable) -> Callable:
+        self._handlers.on_message_recv = func
         return func
     
-    def on_file(self, func: Callable) -> Callable:
-        self._handlers.on_file = func
+    def on_message_send(self, func: Callable) -> Callable:
+        self._handlers.on_message_send = func
+        return func
+    
+    def on_file_recv(self, func: Callable) -> Callable:
+        self._handlers.on_file_recv = func
+        return func
+    
+    def on_file_send(self, func: Callable) -> Callable:
+        self._handlers.on_file_send = func
         return func
     
     def on_disconnect(self, func: Callable) -> Callable:
@@ -67,12 +84,23 @@ class Socket:
             LOG.warning("Socket not bound")
             return IterationStatus.FINISHED
         
+        if time.time() - self._recv_per_second_last > 1:
+            self._recv_per_second_last = time.time()
+            self._recv_per_second = 0
+        
+        if time.time() - self._send_per_second_last > 1:
+            self._send_per_second_last = time.time()
+            self._send_per_second = 0
+        
         for key, _ in self._socket_selector.select(timeout=0):
             try:
                 data, (ip, port) = key.fileobj.recvfrom(1024)
             except ConnectionResetError:
                 LOG.warning("Connection reset")
                 continue
+            
+            self._recv_per_second += len(data)
+
             side = ConnSide(ip, port)
             LOG.debug(f"Received {len(data)} bytes from {side}")
 
@@ -91,6 +119,8 @@ class Socket:
         return IterationStatus.SLEEP
     
     def _send_to(self, side: ConnSide, data: bytes) -> None:
+        self._send_per_second += len(data)
+
         if self.emulate_problems and randint(0, 1000) < 5:
             change_index = randint(0, len(data) - 1)
             data = data[:change_index] + bytes([randint(0, 255)]) + data[change_index + 1:]
