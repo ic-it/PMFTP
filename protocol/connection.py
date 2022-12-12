@@ -41,10 +41,9 @@ class Connection:
         self.conversation_status: ConversationStatus = ConversationStatus()
         
         self.__sequence_number = 0
-        self.__window_size = 10
         self.__wait_for_acknowledgment: list[Packet] = []
         self.__last_time = time.time()
-        self.__keep_alive = 2
+        self.__keep_alive = 10
 
         self.__transfers: dict[int, tuple[RecvTransfer | SendTransfer, BytesIO]] = {}
 
@@ -59,6 +58,10 @@ class Connection:
     @property
     def transfers_count(self) -> int:
         return len(self.__transfers)
+    
+    @property
+    def transfers(self) -> dict[int, tuple[RecvTransfer | SendTransfer, BytesIO]]:
+        return self.__transfers
     
     def _build_header(self, flags: Flags, ack_number: int) -> Header:
         self.__sequence_number += 1

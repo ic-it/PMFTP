@@ -11,10 +11,26 @@ from protocol.socket import Socket
 from protocol.connection import Connection
 from protocol.types.conn_side import ConnSide
 from protocol.transfers.send import SendTransfer
+from protocol.transfers.recv import RecvTransfer
 
-logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.INFO)
 
-UDP_IP = socket.gethostbyname(socket.gethostname())
+_, _, ips = socket.gethostbyname_ex(socket.gethostname())
+
+print("Select IP:")
+for i, my_ip in enumerate(ips):
+    print(f"{i}) {my_ip}")
+
+ip_index = -1
+while ip_index not in range(len(ips)):
+    try:
+        ip_index = int(input("Enter number: "))
+    except ValueError:
+        print("Invalid number")
+    if ip_index not in range(len(ips)):
+        print("Number out of range")
+    
+UDP_IP = ips[ip_index]
 UDP_PORT = None
 RECVS_DIR = "recvs"
 
@@ -39,7 +55,7 @@ while not UDP_PORT:
 
 sock = Socket(UDP_IP, UDP_PORT)
 
-sock.emulate_problems = True
+# sock.emulate_problems = True
 
 @sock.on_connect
 def on_connect(conn: Connection):
@@ -76,19 +92,21 @@ def on_disconnect(conn: Connection):
     print("Disconnected handler", conn.other_side)
 
 
-def print_progress(transfer: SendTransfer):
-    while not transfer.done:
-        print(f"Sending {transfer.progress:.2f}%", end='\r')
-        sleep(0.01)
-
-
 sock.bind()
 
 
 def commandline(sock_: Socket):
     conn_ = None
+    fragment_size = None
 
     while True:
+        if conn_:
+            progresses = []
+            for tid, (transfer, tio) in conn_.transfers.items():
+                transfer: SendTransfer | RecvTransfer
+                progresses.append(f"{tid}{ '->' if isinstance(transfer, SendTransfer) else '<-' }{transfer.progress:.2f}%")
+            print(f"[{' '.join(progresses)}]")
+                
         try:
             command = input(f"[{sock_.bound_on}]>> ").strip()
         except EOFError:
@@ -99,8 +117,10 @@ def commandline(sock_: Socket):
             print("connect <ip:port> - connect to ip:port")
             print("connections - list all connections")
             print("switch <ip:port> - switch to connection")
-            print("sendfile <file> [fragment_size] - send file")
-            print("sendmsg <message> [fragment_size] - send message")
+            print("sendfile <file> - send file")
+            print("sendmsg <message> - send message")
+            print("fragment <size> - set fragment size")
+            print("help - show this message")
             print("exit - exit")
         
         if command.startswith("switch"):
@@ -134,8 +154,7 @@ def commandline(sock_: Socket):
                 if len(command.split(" ")) == 3:
                     fragment_size = int(command.split(" ")[2])
                 try:
-                    transfer = conn_.send_file(open(command.split(" ")[1], "rb"), fragment_size=fragment_size)
-                    Thread(target=print_progress, args=(transfer, )).start()
+                    conn_.send_file(open(command.split(" ")[1], "rb"), fragment_size=fragment_size)
                 except ValueError as e:
                     print(e)
             else:
@@ -145,12 +164,7 @@ def commandline(sock_: Socket):
         if command.startswith("sendmsg"):
             command = command.replace("sendmsg ", "")
             if conn_:
-                fragment_size = None
-                try:
-                    fragment_size, msg = int(command.split(" ")[0]), command.split(" ")[1:]
-                except ValueError:
-                    pass
-                msg = ' '.join(msg)
+                msg = command
                 conn_.send_message(msg.encode("utf-8"), fragment_size=fragment_size)
             else:
                 print("You need to connect first")

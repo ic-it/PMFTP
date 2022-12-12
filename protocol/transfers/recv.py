@@ -12,11 +12,11 @@ from ..types.iteration_status import IterationStatus
 
 LOG = logging.getLogger("RecvTransfer")
 
-LOG.green = lambda x: LOG.info(f"\033[92m{x}\033[0m" + " "*20)
-LOG.red = lambda x: LOG.info(f"\033[91m{x}\033[0m" + " "*20)
-LOG.gray = lambda x: LOG.info(f"\033[90m{x}\033[0m" + " "*20)
-LOG.yellow = lambda x: LOG.info(f"\033[93m{x}\033[0m" + " "*20)
-LOG.cyan = lambda x: LOG.info(f"\033[96m{x}\033[0m" + " "*20)
+LOG.green = lambda x: LOG.debug(f"\033[92m{x}\033[0m" + " "*20)
+LOG.red = lambda x: LOG.debug(f"\033[91m{x}\033[0m" + " "*20)
+LOG.gray = lambda x: LOG.debug(f"\033[90m{x}\033[0m" + " "*20)
+LOG.yellow = lambda x: LOG.debug(f"\033[93m{x}\033[0m" + " "*20)
+LOG.cyan = lambda x: LOG.debug(f"\033[96m{x}\033[0m" + " "*20)
 
 _T = TypeVar("_T")
 
@@ -100,6 +100,10 @@ class RecvTransfer:
     @property
     def filename(self) -> bytes | None:
         return self.__filename
+    
+    @property
+    def progress(self) -> float:
+        return (self.__recived_data_length / (self.__length or 1)) * 100
     
     def kill(self) -> None:
         self.__killed = True
