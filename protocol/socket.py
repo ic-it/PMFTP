@@ -188,7 +188,7 @@ class Socket:
             return
 
         for iterator in self._iterators_queue:
-            for i in range(40):
+            for i in range(400):
                 status = iterator()
                 if status == IterationStatus.FINISHED:
                     if iterator in self._iterators_queue:

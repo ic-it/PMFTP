@@ -23,6 +23,7 @@
     - [Transfer id](#transfer-id)
     - [Checksum](#checksum)
     - [Timeout](#timeout)
+    - [Diagram](#diagram)
 - [Data structure](#data-structure)
     - [syn](#syn-ds)
     - [syn-ack](#syn-ack)
@@ -30,11 +31,19 @@
         - [syn-send-msg](#syn-send-msg)
         - [syn-send-file](#syn-send-file)
     - [send-part](#send-part)
+- [Protocol Communication Diagrams](#protocol-communication-diagrams)
+    - [Connection establishment](#connection-establishment)
+    - [Message transfer](#message-transfer)
+    - [File transfer](#file-transfer)
+    - [Connection termination](#connection-termination)
 - [Protocol features](#protocol-features)
     - [Program hierarchy](#program-hierarchy)
     - [Encryption](#encryption)
     - [Binary transfer](#binary-transfer)
     - [Error emulation](#error-emulation)
+    - [Timeout emulation](#timeout-emulation)
+    - [ARQ](#arq)
+    - [Keep alive](#keep-alive)
 - [Test client](#test-client)
 - [License](#license)
 
@@ -47,10 +56,10 @@ Used encryption algorithm is based on [AES](https://en.wikipedia.org/wiki/Advanc
 The header of the packet is 21 bytes long. The header is divided into 6 fields. The fields are described below.
 
 ### Seq number
-Individual packet number 
+32 bit sequence number. 
 
 ### Ack number
-Acknowledgment number
+32 bit acknowledgement number.
 
 ### Flags
 The flags field is 1 byte long. The flags field is divided into 8 bits. The bits are described below.
@@ -82,13 +91,35 @@ The flags field is 1 byte long. The flags field is divided into 8 bits. The bits
     FILE flag is used to send a file.
 
 ### Transfer id
+16 bit checksum.  
 Transfer id. Used to identify the transfer.
 
 ### Checksum
+16 bit checksum.  
 Checksum is used to verify the integrity of the packet. The checksum is calculated from the header and the data. The checksum is calculated using the [RFC1071](https://tools.ietf.org/html/rfc1071) algorithm.
 
 ### Timeout
+64 bit timeout.  
 Timeout is used to set the timeout for the packet. The timeout is set in milliseconds.
+
+### Diagram
+One line is 32 bits long. The diagram is divided into 4 parts. The parts are described below.
+```
+            111111 11112222 22222233
+ 01234567 89012345 67890123 45678901
++--------+--------+--------+--------+
+|             Seq number            |
++--------+--------+--------+--------+
+|             Ack number            |
++--------+--------+--------+--------+
+|  Flags |   Transfer id   |
++--------+--------+--------+--------+
+|     Checksum    |
++--------+--------+--------+--------+
+|             Time                  |
+|                 out               |
++--------+--------+--------+--------+
+```
 
 ## Data structure
 The data structure is divided into 4 parts. The parts are described below.
@@ -110,6 +141,22 @@ The SYN-SEND packet is used to send a message or a file.
 
 ### send-part
 The SEND-PART packet is used to send a part of the file. The SEND-PART packet contains the part of the file and position in the stram in the data.
+
+## Protocol Communication Diagrams
+The diagrams are divided into 4 parts. The parts are described below.
+
+### Connection establishment
+![connection establishment](./connection.svg)
+
+### Message transfer
+![message transfer](./send_msg.svg)
+
+### File transfer
+![file transfer](./send_file.svg)
+
+### Connection termination
+![connection termination](./disconnect.svg)
+
 
 ## Protocol features
 
@@ -137,6 +184,16 @@ You can transmit data in both directions simultaneously.
 
 ### Error emulation
 It is possible to intentionally break a random package. But it will just be ignored on the socket side and that's it.
+
+### Timeout emulation
+It is possible to intentionally break a random package. But it will just be ignored on the socket side and that's it.
+
+### ARQ
+I came up with a very specific and very reliable type of ARQ. First, I send N packets and wait for K(N>=K>1) ACK. Then I send K packets. If there is a timeout on the packet that is waiting for ACK, it is sent again.
+
+### Keepalive
+Alas, I made keepalive before timeout, so if there have been no incoming packets for a long time, it just sends a packet with the ACK|UNACK header every <keepalive_time> seconds and waits for a response. If no more than 3 responses came, it sends a FIN (purely out of respect) and ignores the responses. 
+<!-- https://external-content.duckduckgo.com/iu/?u=https%3A%2F%2Fi.sunhome.ru%2Ftests%2F66%2Fty_dzhentlmen.xxl.jpg&f=1&nofb=1&ipt=2725e96996301073a24954a9a7efcacec414a6a8c25dd70dabd8ae32b9941f38&ipo=images -->
 
 ## Test client
 The test client is a simple client for testing the protocol. The test client knows how to connect to various other clients, transfer files and messages. 

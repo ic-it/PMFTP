@@ -110,7 +110,7 @@ class Connection:
 
         LOG.debug(f"Sending {packet.header.flags.__repr__()} flags to {self.other_side}")
         self.__send_proxy(self.other_side, packet.dump())
-        if packet.header.transfer_id:
+        if packet.header.transfer_id != 0:
             return
         self.__wait_for_acknowledgment.append(packet)
         self.conversation_status.new_packet(packet)
@@ -288,7 +288,10 @@ class Connection:
             return IterationStatus.FINISHED
         
         for transfer_id, (transfer, io_) in list(self.__transfers.items()):
-            if isinstance(transfer, RecvTransfer) and transfer.done:
+            if not transfer.done:
+                continue
+            
+            if isinstance(transfer, RecvTransfer):
                 if transfer.data_type == Flags.MSG:
                     self.__handlers.on_message_recv(self, io_.getvalue(), transfer.is_correct)
                 if transfer.data_type == Flags.FILE:
@@ -314,7 +317,7 @@ class Connection:
                 self._process_syn_ack(packet.downcast(SynAckPacket))
             
             if not self.conversation_status.is_connected:
-                continue
+                continue # Ignore packets if not connected
 
             if packet.header.flags == Flags.FIN:
                 self._process_fin(packet)

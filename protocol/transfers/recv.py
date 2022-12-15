@@ -31,11 +31,11 @@ class RecvTransfer:
         self.__last_recv_time = time()
         self.__last_process_time = time()
 
-        self.__timeout = 10
-        self.__ack_timeout = 3
-        self.__process_window_tick = 0.05
+        self.__timeout = 30
+        self.__ack_timeout = 10
+        self.__process_window_tick = 0.01
 
-        self.__max_ack_size = 30
+        self.__max_ack_size = 100
 
         self.__length = length
         self.__window: list[SendPartPacket] = []
