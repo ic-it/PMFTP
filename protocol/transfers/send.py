@@ -22,7 +22,7 @@ LOG.cyan = lambda x: LOG.info(f"\033[96m{x}\033[0m" + " "*20)
 
 _T = TypeVar("_T")
 
-PART_SIZE = 1000-HEADER_SIZE-10 # 1024 - header - 10 bytes for part number
+PART_SIZE = 1024-HEADER_SIZE-10 # 1024 - header - 10 bytes for part number
 
 class SendTransfer:
     def __init__(self,

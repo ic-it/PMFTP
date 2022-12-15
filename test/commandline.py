@@ -37,6 +37,19 @@ def command_startswith_validator(startswith: str) -> bool:
         return command.startswith(startswith)
     return validator
 
+# def calculate_speed(transfer: SendTransfer | RecvTransfer, sock_: Socket) -> tuple[int, int]:
+#     recv_in_s = 0
+#     send_in_s = 0
+#     seconds = 0
+#     while not transfer.done:
+#         sleep(1)
+#         send_in_s_, recv_in_s_ = sock_.speed
+#         recv_in_s += recv_in_s_
+#         send_in_s += send_in_s_
+#         seconds += 1
+    
+#     print(f"Transfer done on {seconds}s. Send: {send_in_s/seconds}B/s Recv: {recv_in_s/seconds}B/s")
+        
 
 def commandline(sock_: Socket):
     conn_ = None
@@ -121,7 +134,8 @@ def commandline(sock_: Socket):
                     print("Not a file")
                     continue
                 try:
-                    conn_.send_file(open(path, "rb"), fragment_size=fragment_size)
+                    transfer = conn_.send_file(open(path, "rb"), fragment_size=fragment_size)
+                    # Thread(target=calculate_speed, args=(transfer, sock_)).start()
                 except ValueError as e:
                     print(e)
             else:

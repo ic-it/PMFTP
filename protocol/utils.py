@@ -2,11 +2,11 @@ import random
 
 from typing import Type
 
-
+# XOR encryption
 PUBLIC_KEY_T = Type[int]
 PRIVATE_KEY_T = Type[int]
 
-def genereate_keys() -> tuple[int, int]:
+def genereate_keys() -> tuple[PUBLIC_KEY_T, PRIVATE_KEY_T]:
     private_key = random.randint(0, 100)
     public_key = private_key * 2
     return public_key, private_key
@@ -24,6 +24,7 @@ def encode_pubkey(pubkey: PUBLIC_KEY_T) -> bytes:
     return pubkey.to_bytes(32, byteorder='big')
 
 
+# null encryption
 # def encrypt(data: bytes, public_key: int) -> bytes:
 #     return data
 

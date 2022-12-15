@@ -116,12 +116,13 @@ class Socket:
                 self._connections.append(connection)
         
             connection._recv(data)
+            return IterationStatus.BUSY
         return IterationStatus.SLEEP
     
     def _send_to(self, side: ConnSide, data: bytes) -> None:
         self._send_per_second += len(data)
 
-        if self.emulate_problems and randint(0, 1000) < 5:
+        if self.emulate_problems and randint(0, 1000) < 10:
             change_index = randint(0, len(data) - 1)
             data = data[:change_index] + bytes([randint(0, 255)]) + data[change_index + 1:]
         self._socket.sendto(data, (side.ip, side.port))
@@ -188,7 +189,7 @@ class Socket:
             return
 
         for iterator in self._iterators_queue:
-            for i in range(400):
+            for i in range(40):
                 status = iterator()
                 if status == IterationStatus.FINISHED:
                     if iterator in self._iterators_queue:
