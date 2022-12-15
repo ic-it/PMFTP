@@ -1,7 +1,8 @@
 import os
 import time
 import socket
-import readline
+
+# import readline
 
 
 from io import FileIO
@@ -33,8 +34,8 @@ def complition(text, state):
     else:
         return None
 
-readline.parse_and_bind("tab: complete")
-readline.set_completer(complition)
+# readline.parse_and_bind("tab: complete")
+# readline.set_completer(complition)
 
 # 
 

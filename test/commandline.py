@@ -1,9 +1,6 @@
 import os
 import sys
-import time
 import logging
-import socket
-import readline
 
 
 from io import FileIO
