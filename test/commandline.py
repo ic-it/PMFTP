@@ -25,9 +25,14 @@ def validate_command(command: str, validate: list[Callable[[str], bool]]) -> boo
     return True
 
 
-def command_count_validator(count: int) -> bool:
+def command_count_validator(count: int, more_less_eq: int = 0) -> bool:
     def validator(command: str):
-        return len(command.split(" ")) == count
+        if more_less_eq == 0:
+            return len(command.split(" ")) == count
+        elif more_less_eq == 1:
+            return len(command.split(" ")) >= count
+        elif more_less_eq == -1:
+            return len(command.split(" ")) <= count
     return validator
 
 def command_startswith_validator(startswith: str) -> bool:
@@ -126,7 +131,7 @@ def commandline(sock_: Socket):
                 print("You need to connect first")
             continue
         
-        if command_startswith_validator("sendmsg")(command) and command_count_validator(2)(command):
+        if command_startswith_validator("sendmsg")(command) and command_count_validator(2, 1)(command):
             command, message = command.split(" ", 1)
             if conn_:
                 conn_.send_message(message.encode("utf-8"), fragment_size=fragment_size)
