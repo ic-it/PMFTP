@@ -32,7 +32,7 @@ Conversation Status Manager: он является частью Connection, ко
 ## Introduction
 A partially encrypted protocol which does not use threads for new connections and new file transfers. Can transfer more than one file in both directions. It is based on the UDP protocol. 
 
-## Lets define terms:
+## Let's define terms:
 - ### Timeout
     The time (in ms) after which a packet does not need to be processed.
 
