@@ -179,7 +179,7 @@ File transfer consists of 4 types of packets. Sending a packet with the SYN-SEND
 
 `SYN-SEND-MSG` structure: 4 bits - data length  
 `SYN-SEND-FILE` structure: 4 bits - data length and max. 999 bytes for filename.  
-`SEND-PART` structure: 4 bits seek_number (place where data is to be inserted) and max. 993 bytes for data.  
+`SEND-PART` structure: 4 bits seek_number (place where data is to be inserted) and max. 999 bytes for data.  
 `ACK` structure: 8 bits for each seek_number  
 `SEND-FIN` structure: Nothing, it flies empty.   
 
@@ -233,7 +233,7 @@ Unknown command
 The simplest implementation is in client.py
 - **checksum**: Algorithm like [RFC1071](https://tools.ietf.org/html/rfc1071). It is used to check the integrity of the data.
 - **timeout**: Packet has its own timeout. If the timeout is exceeded, the data is re-sent.
-- **Payload in the SEND-PART package**: Max. Payload is 993 bytes.
+- **Payload in the SEND-PART package**: Max. Payload is 999 bytes.
 
 
 ## Small Tests
