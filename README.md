@@ -179,7 +179,7 @@ File transfer consists of 4 types of packets. Sending a packet with the SYN-SEND
 
 `SYN-SEND-MSG` structure: 4 bits - data length  
 `SYN-SEND-FILE` structure: 4 bits - data length and max. 999 bytes for filename.  
-`SEND-PART` structure: 4 bits seek_number (place where data is to be inserted) and max. 993 bytes for data.
+`SEND-PART` structure: 4 bits seek_number (place where data is to be inserted) and max. 993 bytes for data.  
 `ACK` structure: 8 bits for each seek_number  
 `SEND-FIN` structure: Nothing, it flies empty.   
 
