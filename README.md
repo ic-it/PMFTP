@@ -178,8 +178,8 @@ File transfer состоит из пакетов 4‑х типов. Отправ
 File transfer consists of 4 types of packets. Sending a packet with the SYN-SEND-(MSG/FILE) header to initialize, SEND-PART to send part of the data, ACK to acknowledge successful packets and SEND-FIN to complete.  
 
 `SYN-SEND-MSG` structure: 4 bits - data length  
-`SYN-SEND-FILE` structure: 4 bits - data length and max. 999 bits for filename.  
-`SEND-PART` structure: 4 bits seek_number (place where data is to be inserted)  
+`SYN-SEND-FILE` structure: 4 bits - data length and max. 999 bytes for filename.  
+`SEND-PART` structure: 4 bits seek_number (place where data is to be inserted) and max. 993 bytes for data.
 `ACK` structure: 8 bits for each seek_number  
 `SEND-FIN` structure: Nothing, it flies empty.   
 
@@ -204,7 +204,29 @@ I have implemented a variation of Selective Repeat ARQ. Each packet has its own 
 As you can see, there are few differences. Only a couple of headers and the data during initialization of the send differ.  
 
 ## client.py
-This is the simplest example of using the protocol. It knows how to connect, hold a connection, send and receive files and or messages.
+This is the simplest example of using the protocol. All the basic functionality of the protocol is implemented there. When you start it, it asks you to select a network interface and asks you to enter port. Then opens the command line. All functions are described below:
+```
+Select IP:
+0) 147.175.1.60
+1) 147.175.167.65
+2) 1.1.1.1
+Enter number (0): 
+IP: 147.175.1.60
+Enter port (55644): 
+[147.175.1.60:55644]>> help
+connect <ip:port> - connect to ip:port
+disconnect - disconnect from current connection
+connections - list all connections
+switch <ip:port> - switch to connection
+sendfile <file> - send file
+sendmsg <message> - send message
+fragment <size> - set fragment size
+logging <level> - set logging level
+help - show this message
+exit - exit
+Unknown command
+[147.175.1.60:55644]>> 
+```
 
 ## Features
 - **Handlers**: for the user to decide what to do with the received data, I have made handlers in which passed new Connections, Disconnections, Files and Messages. 
